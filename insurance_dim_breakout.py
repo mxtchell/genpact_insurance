@@ -293,12 +293,79 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
         else:
             metric_name = val_col.replace('_', ' ').title()
     
-    # Extract time period from env parameters
+    # Extract time period from env parameters - handle date ranges properly
     if env and hasattr(env, 'periods') and env.periods:
-        # Use the first period from the parameters and capitalize properly
-        period = env.periods[0] if isinstance(env.periods, list) else env.periods
-        # Capitalize quarters and years properly (q1 2025 -> Q1 2025)
-        time_period = period.upper() if period.lower().startswith('q') else period
+        periods = env.periods if isinstance(env.periods, list) else [env.periods]
+        print(f"DEBUG: Processing {len(periods)} periods: {periods}")
+        
+        if len(periods) == 1:
+            # Single period - capitalize quarters and years properly (q1 2025 -> Q1 2025)  
+            period = periods[0]
+            time_period = period.upper() if period.lower().startswith('q') else period
+        else:
+            # Multiple periods - create date range
+            # Sort periods chronologically (not alphabetically)
+            month_order = {
+                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+            }
+            
+            def sort_key(period):
+                # Extract month and year for sorting
+                parts = period.lower().split()
+                if len(parts) >= 2:
+                    month_part = parts[0][:3]  # First 3 chars of month
+                    year_part = parts[1]
+                    month_num = month_order.get(month_part, 0)
+                    return (int(year_part), month_num)
+                return (0, 0)
+            
+            sorted_periods = sorted(periods, key=sort_key)
+            start_period = sorted_periods[0]
+            end_period = sorted_periods[-1]
+            print(f"DEBUG: Sorted periods from {start_period} to {end_period}")
+            
+            # Handle different period formats
+            if start_period.lower().startswith('q') and end_period.lower().startswith('q'):
+                # Quarter range: Q1 2025 to Q2 2025
+                time_period = f"{start_period.upper()} to {end_period.upper()}"
+            elif len(sorted_periods) >= 6:  # 6 or more months
+                # For 6+ month ranges, show month range instead of listing all months
+                # Extract year from periods to build proper range
+                start_year = end_year = "2025"  # Default, but try to extract from periods
+                if any(year in start_period for year in ['2024', '2025', '2026']):
+                    for year in ['2024', '2025', '2026']:
+                        if year in start_period:
+                            start_year = year
+                            break
+                if any(year in end_period for year in ['2024', '2025', '2026']):
+                    for year in ['2024', '2025', '2026']:
+                        if year in end_period:
+                            end_year = year
+                            break
+                
+                # Map month abbreviations to full names
+                month_map = {
+                    'jan': 'January', 'feb': 'February', 'mar': 'March', 'apr': 'April',
+                    'may': 'May', 'jun': 'June', 'jul': 'July', 'aug': 'August', 
+                    'sep': 'September', 'oct': 'October', 'nov': 'November', 'dec': 'December'
+                }
+                
+                start_month = start_period.split()[0].lower()[:3]  # Get first 3 chars of month
+                end_month = end_period.split()[0].lower()[:3]
+                
+                start_month_name = month_map.get(start_month, start_period.split()[0].title())
+                end_month_name = month_map.get(end_month, end_period.split()[0].title())
+                
+                if start_year == end_year:
+                    time_period = f"{start_month_name} to {end_month_name} {start_year}"
+                else:
+                    time_period = f"{start_month_name} {start_year} to {end_month_name} {end_year}"
+            else:
+                # Default: show range
+                time_period = f"{start_period.title()} to {end_period.title()}"
+        
+        print(f"DEBUG: Final time_period for chart title: '{time_period}'")
     
     # Prepare chart data
     chart_data = []
