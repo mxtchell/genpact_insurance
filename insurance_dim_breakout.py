@@ -363,9 +363,12 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     
     # Prepare chart data
     chart_data = []
+    print(f"DEBUG: Preparing chart data using column '{val_col}'")
     for idx, row in original_table.head(10).iterrows():
         country = str(row.iloc[0])
         value_str = str(row[val_col]) if pd.notna(row[val_col]) else "0"
+        print(f"DEBUG: Row {idx} - {country}: raw value = '{value_str}' from column '{val_col}'")
+        
         # Clean formatted value string (remove $, commas, etc.)
         value_clean = value_str.replace('$', '').replace(',', '').replace(' ', '')
         try:
@@ -380,7 +383,9 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
                 # For monetary values, use Genpact formatting with dollar sign
                 raw_value = float(value_clean)
                 formatted_value = f"${genpact_format_number(raw_value)}"
-        except:
+            print(f"DEBUG: Converted to raw_value={raw_value}, formatted='{formatted_value}'")
+        except Exception as e:
+            print(f"DEBUG: Conversion failed: {e}")
             raw_value = 0
             formatted_value = "0"
         chart_data.append({
@@ -388,6 +393,8 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
             "y": raw_value,
             "formatted": formatted_value
         })
+    
+    print(f"DEBUG: Final chart_data: {chart_data[:3]}")
     
     # Create bar chart configuration
     bar_chart = {
@@ -771,10 +778,9 @@ def render_layout(tables, bridge_chart_data, title, subtitle, insights_dfs, warn
     insight_template = jinja2.Template(insight_prompt).render(**{"facts": facts})
     max_response_prompt = jinja2.Template(max_prompt).render(**{"facts": facts})
 
-    # adding insights - DISABLED FOR DEBUGGING
-    # ar_utils = ArUtils()
-    # insights = ar_utils.get_llm_response(insight_template)
-    insights = "Debug mode - insights disabled"
+    # adding insights
+    ar_utils = ArUtils()
+    insights = ar_utils.get_llm_response(insight_template)
     viz_list = []
     slides = []
     export_data = {}
