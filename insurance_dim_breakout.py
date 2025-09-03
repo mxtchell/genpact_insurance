@@ -219,61 +219,50 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     # Get the original table data for chart
     original_table = original_tables[name]
     
-    # Find CURRENT period column for chart data - AVOID rank columns
+    # Find CURRENT period column for chart data - BULLETPROOF: NEVER use rank columns
     val_col = None
     
     print(f"DEBUG: All columns in table: {list(original_table.columns)}")
     print(f"DEBUG: Environment metrics: {getattr(env, 'metrics', None) if env else None}")
     
-    # First priority: find columns matching requested metrics (skip rank columns)
+    # Get all columns and filter out ANY rank-related columns completely
+    all_columns = list(original_table.columns)
+    non_rank_columns = []
+    
+    for col in all_columns:
+        col_lower = col.lower()
+        # BULLETPROOF: Skip ANY column that contains rank-related terms
+        if any(term in col_lower for term in ['rank', 'top_rank', 'toprank', 'top ', 'position', 'order']):
+            print(f"DEBUG: REJECTING rank/position column: {col}")
+            continue
+        non_rank_columns.append(col)
+    
+    print(f"DEBUG: Non-rank columns available: {non_rank_columns}")
+    
+    # Strategy 1: Look for specific metric columns (excluding first column which is usually dimension)
     if env and hasattr(env, 'metrics') and env.metrics:
         for metric in env.metrics:
             metric_lower = metric.lower().replace('_', ' ')
             print(f"DEBUG: Looking for metric: {metric_lower}")
-            for col in original_table.columns:
+            for col in non_rank_columns[1:]:  # Skip first column (dimension)
                 col_lower = col.lower()
-                # SKIP rank columns completely
-                if 'rank' in col_lower or 'top ' in col_lower:
-                    print(f"DEBUG: SKIPPING rank column: {col}")
-                    continue
-                # Look for metric name in column and current period
-                if metric_lower in col_lower and 'current' in col_lower:
+                if metric_lower in col_lower:
                     print(f"DEBUG: FOUND matching metric column: {col}")
-                    val_col = col
-                    break
-                elif metric_lower in col_lower:
-                    print(f"DEBUG: FOUND metric column (no current): {col}")
                     val_col = col
                     break
             if val_col:
                 break
     
-    # Second priority: find any current period column that's NOT a rank
-    if not val_col:
-        print("DEBUG: No metric match, looking for any current column")
-        for col in original_table.columns:
-            col_lower = col.lower()
-            # SKIP rank columns completely  
-            if 'rank' in col_lower or 'top ' in col_lower:
-                print(f"DEBUG: SKIPPING rank column: {col}")
-                continue
-            if 'current' in col_lower:
-                print(f"DEBUG: FOUND current column: {col}")
-                val_col = col
-                break
+    # Strategy 2: Find any value column (skip first column which is dimension)
+    if not val_col and len(non_rank_columns) > 1:
+        print("DEBUG: No metric match, using first non-dimension column")
+        val_col = non_rank_columns[1]  # Second column (first value column)
+        print(f"DEBUG: SELECTED first value column: {val_col}")
     
-    # Final fallback: first non-rank numeric column
-    if val_col is None:
-        print("DEBUG: No current column found, using numeric fallback")
-        numeric_cols = original_table.select_dtypes(include=['number']).columns.tolist()
-        for col in numeric_cols:
-            col_lower = col.lower()
-            if 'rank' not in col_lower and 'top ' not in col_lower:
-                print(f"DEBUG: FOUND numeric column: {col}")
-                val_col = col
-                break
-        if not val_col and numeric_cols:
-            val_col = numeric_cols[0]
+    # Strategy 3: Absolute fallback - use second column regardless
+    if not val_col and len(all_columns) > 1:
+        val_col = all_columns[1]
+        print(f"DEBUG: EMERGENCY fallback to second column: {val_col}")
     
     print(f"DEBUG: FINAL selected column: {val_col}")
     if val_col and not original_table.empty:
