@@ -157,34 +157,31 @@ def find_footnote(footnotes, df):
     return dim_note
 
 def replace_period_placeholders(df, env):
-    """Replace (CURRENT) and (PREVIOUS) in column names with actual period values"""
+    """Replace (CURRENT) and (PREVIOUS) in column names with actual period values from data"""
     if env is None or not hasattr(env, 'periods') or not env.periods:
         return df
     
-    current_period = env.periods[0] if isinstance(env.periods, list) else env.periods
-    # Capitalize quarters properly (q1 2025 -> Q1 2025)
-    current_period = current_period.upper() if current_period.lower().startswith('q') else current_period
+    # Extract periods directly from the actual column names in the DataFrame
+    current_period = "CURRENT"
+    previous_period = "PREVIOUS" 
     
-    # For previous period, handle both Y/Y and P/P
-    previous_period = "PREVIOUS"
-    if hasattr(env, 'growth_type') and env.growth_type in ["Y/Y", "P/P"]:
-        if env.growth_type == "Y/Y":
-            # Year over year - previous year
-            if current_period.isdigit():
-                previous_period = str(int(current_period) - 1)
-            elif current_period.lower().startswith('q'):
-                # For quarters like Q1 2025, extract year and subtract 1
-                parts = current_period.split()
-                if len(parts) == 2 and parts[1].isdigit():
-                    prev_year = str(int(parts[1]) - 1)
-                    previous_period = f"{parts[0]} {prev_year}"
-                else:
-                    previous_period = "PRIOR YEAR"
-            else:
-                previous_period = "PRIOR YEAR"
-        elif env.growth_type == "P/P":
-            # Period over period - previous period
-            previous_period = "PRIOR PERIOD"
+    print(f"DEBUG: Original columns for period replacement: {list(df.columns)}")
+    
+    # Look for existing period information in column names
+    for col in df.columns:
+        col_lower = col.lower()
+        # Find current period from column names like "NET WRITTEN PREMIUM (Q1 2025)"
+        if '(' in col and ')' in col and 'current' not in col_lower:
+            period_match = col.split('(')[-1].split(')')[0]
+            if any(year in period_match for year in ['2024', '2025', '2026']):
+                if current_period == "CURRENT":  # First period found
+                    current_period = period_match
+                    print(f"DEBUG: Found current period in column: {period_match}")
+                elif previous_period == "PREVIOUS":  # Second period found
+                    previous_period = period_match  
+                    print(f"DEBUG: Found previous period in column: {period_match}")
+    
+    print(f"DEBUG: Using current_period='{current_period}', previous_period='{previous_period}'")
     
     # Replace column names - check all possible formats
     new_columns = []
