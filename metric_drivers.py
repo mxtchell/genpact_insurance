@@ -14,7 +14,608 @@ import jinja2
 import logging
 import json
 
+from genpact_formatting import genpact_format_number
+
 logger = logging.getLogger(__name__)
+
+def create_comparison_bar_chart(table, name, env=None):
+    """Create horizontal bar chart comparing current vs previous period"""
+    if table is None or table.empty:
+        return None
+    
+    # Find current and previous period columns
+    current_col = None
+    previous_col = None
+    
+    for col in table.columns:
+        if 'current' in col.lower() or '(2024)' in col or '(2025)' in col:
+            current_col = col
+        elif 'previous' in col.lower() or '(2023)' in col or '(2024)' in col:
+            previous_col = col
+    
+    if not current_col or not previous_col:
+        return None
+    
+    # Extract metric name and time periods
+    metric_name = current_col.split('(')[0].strip() if '(' in current_col else current_col
+    
+    # Get period labels
+    current_period = "Current"
+    previous_period = "Previous"
+    if env and hasattr(env, 'periods') and env.periods:
+        period = env.periods[0] if isinstance(env.periods, list) else env.periods
+        current_period = period.upper() if period.lower().startswith('q') else period
+        # Calculate previous period
+        if hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.isdigit():
+            previous_period = str(int(period) - 1)
+        elif hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.lower().startswith('q'):
+            parts = period.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                prev_year = str(int(parts[1]) - 1)
+                previous_period = f"{parts[0].upper()} {prev_year}"
+    
+    # Prepare chart data - horizontal bars
+    categories = []
+    current_values = []
+    previous_values = []
+    
+    for idx, row in table.head(10).iterrows():
+        category = str(row.iloc[0])  # First column is dimension
+        
+        # Get current period value
+        current_val_str = str(row[current_col]) if pd.notna(row[current_col]) else "0"
+        current_clean = current_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+        try:
+            current_val = float(current_clean)
+        except:
+            current_val = 0
+            
+        # Get previous period value  
+        prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
+        prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+        try:
+            prev_val = float(prev_clean)
+        except:
+            prev_val = 0
+        
+        categories.append(category)
+        current_values.append(current_val)
+        previous_values.append(prev_val)
+    
+    # Check if this is a percentage metric
+    is_percentage = '%' in current_col.lower() or 'percent' in current_col.lower()
+    
+    # Format values for display
+    current_formatted = []
+    previous_formatted = []
+    for curr, prev in zip(current_values, previous_values):
+        if is_percentage:
+            current_formatted.append(f"{curr:.1f}%")
+            previous_formatted.append(f"{prev:.1f}%")
+        else:
+            current_formatted.append(f"${genpact_format_number(curr)}")
+            previous_formatted.append(f"${genpact_format_number(prev)}")
+    
+    # Create horizontal bar chart configuration
+    bar_chart = {
+        "type": "highcharts",
+        "config": {
+            "chart": {"type": "bar"},
+            "title": {"text": f"{name} - {current_period} vs {previous_period}"},
+            "xAxis": {"categories": categories},
+            "yAxis": {
+                "title": {"text": metric_name}
+            },
+            "tooltip": {
+                "valueSuffix": "%" if is_percentage else ""
+            },
+            "series": [
+                {
+                    "name": current_period,
+                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
+                    "color": "#2E86C1"
+                },
+                {
+                    "name": previous_period,
+                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
+                    "color": "#8E44AD"
+                }
+            ],
+            "plotOptions": {
+                "bar": {
+                    "dataLabels": {
+                        "enabled": True,
+                        "format": "{point.formatted}"
+                    }
+                }
+            }
+        }
+    }
+    
+    return bar_chart
+
+def create_vertical_metrics_chart(table, env=None):
+    """Create vertical bar chart for metrics comparison on main tab"""
+    if table is None or table.empty:
+        return None
+    
+    # Find current and previous period columns
+    current_col = None
+    previous_col = None
+    
+    for col in table.columns:
+        if 'current' in col.lower() or '(2024)' in col or '(2025)' in col:
+            current_col = col
+        elif 'previous' in col.lower() or '(2023)' in col or '(2024)' in col:
+            previous_col = col
+    
+    if not current_col or not previous_col:
+        return None
+    
+    # Get period labels
+    current_period = "Current"
+    previous_period = "Previous"
+    if env and hasattr(env, 'periods') and env.periods:
+        period = env.periods[0] if isinstance(env.periods, list) else env.periods
+        current_period = period.upper() if period.lower().startswith('q') else period
+        # Calculate previous period
+        if hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.isdigit():
+            previous_period = str(int(period) - 1)
+        elif hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.lower().startswith('q'):
+            parts = period.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                prev_year = str(int(parts[1]) - 1)
+                previous_period = f"{parts[0].upper()} {prev_year}"
+    
+    # Prepare chart data - vertical columns
+    categories = []
+    current_values = []
+    previous_values = []
+    
+    for idx, row in table.head(10).iterrows():
+        metric_name = str(row.iloc[0])  # First column is metric name
+        
+        # Get current period value
+        current_val_str = str(row[current_col]) if pd.notna(row[current_col]) else "0"
+        current_clean = current_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+        try:
+            current_val = float(current_clean)
+        except:
+            current_val = 0
+            
+        # Get previous period value  
+        prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
+        prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+        try:
+            prev_val = float(prev_clean)
+        except:
+            prev_val = 0
+        
+        categories.append(metric_name)
+        current_values.append(current_val)
+        previous_values.append(prev_val)
+    
+    # Check if this is a percentage metric
+    is_percentage = '%' in current_col.lower() or 'percent' in current_col.lower()
+    
+    # Format values for display
+    current_formatted = []
+    previous_formatted = []
+    for curr, prev in zip(current_values, previous_values):
+        if is_percentage:
+            current_formatted.append(f"{curr:.1f}%")
+            previous_formatted.append(f"{prev:.1f}%")
+        else:
+            current_formatted.append(genpact_format_number(curr, add_dollar_sign=True))
+            previous_formatted.append(genpact_format_number(prev, add_dollar_sign=True))
+    
+    # Create vertical column chart configuration
+    column_chart = {
+        "type": "highcharts",
+        "config": {
+            "chart": {"type": "column"},
+            "title": {"text": f"Metrics Comparison - {current_period} vs {previous_period}"},
+            "xAxis": {"categories": categories},
+            "yAxis": {
+                "title": {"text": "Value"}
+            },
+            "tooltip": {
+                "valueSuffix": "%" if is_percentage else ""
+            },
+            "series": [
+                {
+                    "name": current_period,
+                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
+                    "color": "#2E86C1"
+                },
+                {
+                    "name": previous_period,
+                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
+                    "color": "#8E44AD"
+                }
+            ],
+            "plotOptions": {
+                "column": {
+                    "dataLabels": {
+                        "enabled": True,
+                        "format": "{point.formatted}"
+                    }
+                }
+            }
+        }
+    }
+    
+    return column_chart
+
+def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout, env=None):
+    """Create custom layout with table + horizontal bar chart integrated"""
+    
+    # Create the bar chart
+    bar_chart = create_comparison_bar_chart(table, name, env)
+    
+    if not bar_chart:
+        # Fallback to regular table layout if chart creation fails
+        return wire_layout(json.loads(viz_layout), {**general_vars, **table_vars})
+    
+    # Create custom layout combining table and chart
+    custom_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "rows": 90,
+            "columns": 160,
+            "rowHeight": "1.11%",
+            "colWidth": "0.625%",
+            "gap": "0px",
+            "style": {
+                "backgroundColor": "#ffffff",
+                "width": "100%",
+                "height": "max-content",
+                "padding": "15px",
+                "gap": "20px"
+            },
+            "children": [
+                # Header card container
+                {
+                    "name": "CardContainer0",
+                    "type": "CardContainer",
+                    "children": "",
+                    "minHeight": "80px",
+                    "rows": 2,
+                    "columns": 1,
+                    "style": {
+                        "border-radius": "11.911px",
+                        "background": "#2563EB",
+                        "padding": "10px",
+                        "fontFamily": "Arial"
+                    },
+                    "hidden": False
+                },
+                # Title
+                {
+                    "name": "Header0",
+                    "type": "Header",
+                    "children": "",
+                    "text": "{{headline}}",
+                    "style": {
+                        "fontSize": "20px",
+                        "fontWeight": "700",
+                        "color": "#ffffff",
+                        "textAlign": "left",
+                        "alignItems": "center"
+                    },
+                    "parentId": "CardContainer0",
+                    "hidden": False
+                },
+                # Subtitle
+                {
+                    "name": "Paragraph0",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "{{sub_headline}}",
+                    "style": {
+                        "fontSize": "15px",
+                        "fontWeight": "normal",
+                        "textAlign": "center",
+                        "verticalAlign": "start",
+                        "color": "#fafafa",
+                        "border": "null",
+                        "textDecoration": "null",
+                        "writingMode": "horizontal-tb",
+                        "alignItems": "center"
+                    },
+                    "parentId": "CardContainer0",
+                    "hidden": False
+                },
+                # Main content container
+                {
+                    "name": "FlexContainer4",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "minHeight": "250px",
+                    "direction": "column",
+                    "maxHeight": "1200px"
+                },
+                # Data table
+                {
+                    "name": "DataTable0",
+                    "type": "DataTable",
+                    "children": "",
+                    "columns": [],
+                    "data": [],
+                    "parentId": "FlexContainer4",
+                    "caption": "",
+                    "styles": {
+                        "td": {
+                            "vertical-align": "middle"
+                        }
+                    }
+                },
+                # Chart container
+                {
+                    "name": "ChartContainer0",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "minHeight": "400px",
+                    "style": {
+                        "borderRadius": "11.911px",
+                        "background": "var(--White, #FFF)",
+                        "box-shadow": "0px 0px 8.785px 0px rgba(0, 0, 0, 0.10) inset",
+                        "padding": "20px",
+                        "margin": "20px 0",
+                        "fontFamily": "Arial"
+                    },
+                    "parentId": "FlexContainer4"
+                },
+                # Chart
+                {
+                    "name": "HighchartsChart0",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "style": {
+                        "border": "none",
+                        "borderRadius": "8px"
+                    },
+                    "options": bar_chart["config"],
+                    "parentId": "ChartContainer0",
+                    "flex": ""
+                }
+            ]
+        },
+        "inputVariables": [
+            {
+                "name": "col_defs",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "DataTable0",
+                        "fieldName": "columns"
+                    }
+                ]
+            },
+            {
+                "name": "data",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "DataTable0",
+                        "fieldName": "data"
+                    }
+                ]
+            },
+            {
+                "name": "headline",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Header0",
+                        "fieldName": "text"
+                    }
+                ]
+            },
+            {
+                "name": "sub_headline",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Paragraph0",
+                        "fieldName": "text"
+                    }
+                ]
+            }
+        ]
+    }
+    
+    return wire_layout(custom_layout, {**general_vars, **table_vars})
+
+def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=None):
+    """Create custom layout with vertical chart above table for main Metrics tab"""
+    
+    # Create the vertical chart
+    vertical_chart = create_vertical_metrics_chart(table, env)
+    
+    if not vertical_chart:
+        # Fallback to regular table layout if chart creation fails
+        return wire_layout(json.loads(viz_layout), {**general_vars, **table_vars})
+    
+    # Create custom layout with chart above table
+    custom_layout = {
+        "layoutJson": {
+            "type": "Document",
+            "rows": 90,
+            "columns": 160,
+            "rowHeight": "1.11%",
+            "colWidth": "0.625%",
+            "gap": "0px",
+            "style": {
+                "backgroundColor": "#ffffff",
+                "width": "100%",
+                "height": "max-content",
+                "padding": "15px",
+                "gap": "20px"
+            },
+            "children": [
+                # Header card container
+                {
+                    "name": "CardContainer0",
+                    "type": "CardContainer",
+                    "children": "",
+                    "minHeight": "80px",
+                    "rows": 2,
+                    "columns": 1,
+                    "style": {
+                        "border-radius": "11.911px",
+                        "background": "#2563EB",
+                        "padding": "10px",
+                        "fontFamily": "Arial"
+                    },
+                    "hidden": False
+                },
+                # Title
+                {
+                    "name": "Header0",
+                    "type": "Header",
+                    "children": "",
+                    "text": "{{headline}}",
+                    "style": {
+                        "fontSize": "20px",
+                        "fontWeight": "700",
+                        "color": "#ffffff",
+                        "textAlign": "left",
+                        "alignItems": "center"
+                    },
+                    "parentId": "CardContainer0",
+                    "hidden": False
+                },
+                # Subtitle
+                {
+                    "name": "Paragraph0",
+                    "type": "Paragraph",
+                    "children": "",
+                    "text": "{{sub_headline}}",
+                    "style": {
+                        "fontSize": "15px",
+                        "fontWeight": "normal",
+                        "textAlign": "center",
+                        "verticalAlign": "start",
+                        "color": "#fafafa",
+                        "border": "null",
+                        "textDecoration": "null",
+                        "writingMode": "horizontal-tb",
+                        "alignItems": "center"
+                    },
+                    "parentId": "CardContainer0",
+                    "hidden": False
+                },
+                # Main content container
+                {
+                    "name": "FlexContainer4",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "minHeight": "250px",
+                    "direction": "column",
+                    "maxHeight": "1200px"
+                },
+                # Chart container (above table)
+                {
+                    "name": "ChartContainer0",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "minHeight": "400px",
+                    "style": {
+                        "borderRadius": "11.911px",
+                        "background": "var(--White, #FFF)",
+                        "box-shadow": "0px 0px 8.785px 0px rgba(0, 0, 0, 0.10) inset",
+                        "padding": "20px",
+                        "margin": "20px 0",
+                        "fontFamily": "Arial"
+                    },
+                    "parentId": "FlexContainer4"
+                },
+                # Chart
+                {
+                    "name": "HighchartsChart0",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "style": {
+                        "border": "none",
+                        "borderRadius": "8px"
+                    },
+                    "options": vertical_chart["config"],
+                    "parentId": "ChartContainer0",
+                    "flex": ""
+                },
+                # Data table (below chart)
+                {
+                    "name": "DataTable0",
+                    "type": "DataTable",
+                    "children": "",
+                    "columns": [],
+                    "data": [],
+                    "parentId": "FlexContainer4",
+                    "caption": "",
+                    "styles": {
+                        "td": {
+                            "vertical-align": "middle"
+                        }
+                    }
+                }
+            ]
+        },
+        "inputVariables": [
+            {
+                "name": "col_defs",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "DataTable0",
+                        "fieldName": "columns"
+                    }
+                ]
+            },
+            {
+                "name": "data",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "DataTable0",
+                        "fieldName": "data"
+                    }
+                ]
+            },
+            {
+                "name": "headline",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Header0",
+                        "fieldName": "text"
+                    }
+                ]
+            },
+            {
+                "name": "sub_headline",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Paragraph0",
+                        "fieldName": "text"
+                    }
+                ]
+            }
+        ]
+    }
+    
+    return wire_layout(custom_layout, {**general_vars, **table_vars})
 
 @skill(
     name=metric_driver_analysis_config.name,
@@ -117,7 +718,8 @@ def simple_metric_driver(parameters: SkillInput):
                                                             warning_messages,
                                                             parameters.arguments.max_prompt,
                                                             parameters.arguments.insight_prompt,
-                                                            parameters.arguments.table_viz_layout)
+                                                            parameters.arguments.table_viz_layout,
+                                                            env)
 
     return SkillOutput(
         final_prompt=final_prompt,
@@ -128,7 +730,7 @@ def simple_metric_driver(parameters: SkillInput):
         export_data=[ExportData(name=name, data=df) for name, df in export_data.items()]
     )
 
-def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, insight_prompt, viz_layout):
+def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, insight_prompt, viz_layout, env=None):
     facts = []
     for i_df in insights_dfs:
         facts.append(i_df.to_dict(orient='records'))
@@ -153,7 +755,15 @@ def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, i
         hide_footer = True
         table_vars = get_table_layout_vars(table, sparkline_col="sparkline")
         table_vars["hide_footer"] = hide_footer
-        rendered = wire_layout(json.loads(viz_layout), {**general_vars, **table_vars})
+        
+        # Use custom layouts with charts
+        if name == "Metrics":
+            # Use vertical chart layout for main Metrics tab
+            rendered = create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env)
+        else:
+            # Use horizontal chart layout for breakout tabs
+            rendered = create_table_chart_layout(name, table, general_vars, table_vars, viz_layout, env)
+        
         viz_list.append(SkillVisualization(title=name, layout=rendered))
 
     return viz_list, insights, max_response_prompt, export_data
@@ -162,13 +772,13 @@ if __name__ == '__main__':
     skill_input: SkillInput = simple_metric_driver.create_input(
         arguments={
   "breakouts": [
-    "brand"
+    "region"
   ],
-  "metric": "sales",
+  "metric": "underwriting_profit",
   "periods": [
-    "2022",
-    "2023"
-  ]
+    "q1 2025"
+  ],
+  "growth_type": "Y/Y"
 })
     out = simple_metric_driver(skill_input)
     preview_skill(simple_metric_driver, out)
