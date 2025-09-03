@@ -222,17 +222,27 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     # Find CURRENT period column for chart data - AVOID rank columns
     val_col = None
     
+    print(f"DEBUG: All columns in table: {list(original_table.columns)}")
+    print(f"DEBUG: Environment metrics: {getattr(env, 'metrics', None) if env else None}")
+    
     # First priority: find columns matching requested metrics (skip rank columns)
     if env and hasattr(env, 'metrics') and env.metrics:
         for metric in env.metrics:
             metric_lower = metric.lower().replace('_', ' ')
+            print(f"DEBUG: Looking for metric: {metric_lower}")
             for col in original_table.columns:
                 col_lower = col.lower()
                 # SKIP rank columns completely
                 if 'rank' in col_lower or 'top ' in col_lower:
+                    print(f"DEBUG: SKIPPING rank column: {col}")
                     continue
                 # Look for metric name in column and current period
                 if metric_lower in col_lower and 'current' in col_lower:
+                    print(f"DEBUG: FOUND matching metric column: {col}")
+                    val_col = col
+                    break
+                elif metric_lower in col_lower:
+                    print(f"DEBUG: FOUND metric column (no current): {col}")
                     val_col = col
                     break
             if val_col:
@@ -240,25 +250,34 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     
     # Second priority: find any current period column that's NOT a rank
     if not val_col:
+        print("DEBUG: No metric match, looking for any current column")
         for col in original_table.columns:
             col_lower = col.lower()
             # SKIP rank columns completely  
             if 'rank' in col_lower or 'top ' in col_lower:
+                print(f"DEBUG: SKIPPING rank column: {col}")
                 continue
             if 'current' in col_lower:
+                print(f"DEBUG: FOUND current column: {col}")
                 val_col = col
                 break
     
     # Final fallback: first non-rank numeric column
     if val_col is None:
+        print("DEBUG: No current column found, using numeric fallback")
         numeric_cols = original_table.select_dtypes(include=['number']).columns.tolist()
         for col in numeric_cols:
             col_lower = col.lower()
             if 'rank' not in col_lower and 'top ' not in col_lower:
+                print(f"DEBUG: FOUND numeric column: {col}")
                 val_col = col
                 break
         if not val_col and numeric_cols:
             val_col = numeric_cols[0]
+    
+    print(f"DEBUG: FINAL selected column: {val_col}")
+    if val_col and not original_table.empty:
+        print(f"DEBUG: Sample values from selected column: {original_table[val_col].head().tolist()}")
     
     # Extract metric name and time period 
     metric_name = "Value"
@@ -691,9 +710,10 @@ def render_layout(tables, bridge_chart_data, title, subtitle, insights_dfs, warn
     insight_template = jinja2.Template(insight_prompt).render(**{"facts": facts})
     max_response_prompt = jinja2.Template(max_prompt).render(**{"facts": facts})
 
-    # adding insights
-    ar_utils = ArUtils()
-    insights = ar_utils.get_llm_response(insight_template)
+    # adding insights - DISABLED FOR DEBUGGING
+    # ar_utils = ArUtils()
+    # insights = ar_utils.get_llm_response(insight_template)
+    insights = "Debug mode - insights disabled"
     viz_list = []
     slides = []
     export_data = {}
@@ -731,7 +751,9 @@ def render_layout(tables, bridge_chart_data, title, subtitle, insights_dfs, warn
         table_vars["footer"] = f"*{dim_note.strip()}" if dim_note else "No additional info."
         
         # Create custom layout with table + chart + insights
+        print(f"DEBUG: Creating chart layout for table '{name}'")
         custom_layout = create_table_chart_layout(name, original_tables, general_vars, table_vars, table.max_metadata.get_id(), viz_layout, env)
+        print(f"DEBUG: Chart layout created successfully")
         viz_list.append(SkillVisualization(title=name, layout=custom_layout))
         
         if table_ppt_layout is not None:
@@ -746,6 +768,6 @@ def render_layout(tables, bridge_chart_data, title, subtitle, insights_dfs, warn
     return viz_list, slides, insights, max_response_prompt, export_data
 
 if __name__ == '__main__':
-    skill_input: SkillInput = simple_breakout.create_input(arguments={'metrics': ["underwriting_profit"], 'breakouts': ["country"], 'periods': ["2024"], 'growth_type': "Y/Y", 'other_filters': []})
+    skill_input: SkillInput = simple_breakout.create_input(arguments={'metrics': ["opex_underwriting","nwp","underwriting_expense_ratio"], 'breakouts': ["line_of_business"], 'periods': ["jun 2025"], 'limit_n': "10"})
     out = simple_breakout(skill_input)
     preview_skill(simple_breakout, out)
