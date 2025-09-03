@@ -224,6 +224,8 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     
     print(f"DEBUG: All columns in table: {list(original_table.columns)}")
     print(f"DEBUG: Environment metrics: {getattr(env, 'metrics', None) if env else None}")
+    print(f"DEBUG: Sample table data:")
+    print(original_table.head(3))
     
     # Get all columns and filter out ANY rank-related columns completely
     all_columns = list(original_table.columns)
@@ -232,37 +234,40 @@ def create_table_chart_layout(name, original_tables, general_vars, table_vars, t
     for col in all_columns:
         col_lower = col.lower()
         # BULLETPROOF: Skip ANY column that contains rank-related terms
-        if any(term in col_lower for term in ['rank', 'top_rank', 'toprank', 'top ', 'position', 'order']):
-            print(f"DEBUG: REJECTING rank/position column: {col}")
+        # Check exact match first, then substring
+        if (col_lower == 'rank' or 
+            any(term in col_lower for term in ['rank', 'top_rank', 'toprank', 'top ', 'position', 'order'])):
+            print(f"DEBUG: REJECTING rank/position column: '{col}'")
             continue
         non_rank_columns.append(col)
     
     print(f"DEBUG: Non-rank columns available: {non_rank_columns}")
     
-    # Strategy 1: Look for specific metric columns (excluding first column which is usually dimension)
-    if env and hasattr(env, 'metrics') and env.metrics:
-        for metric in env.metrics:
-            metric_lower = metric.lower().replace('_', ' ')
-            print(f"DEBUG: Looking for metric: {metric_lower}")
-            for col in non_rank_columns[1:]:  # Skip first column (dimension)
-                col_lower = col.lower()
-                if metric_lower in col_lower:
-                    print(f"DEBUG: FOUND matching metric column: {col}")
-                    val_col = col
-                    break
-            if val_col:
-                break
+    # BULLETPROOF STRATEGY: Always use first METRIC column (skip dimension and utility columns)
+    print("DEBUG: Finding first actual metric column...")
     
-    # Strategy 2: Find any value column (skip first column which is dimension)
+    for col in non_rank_columns:
+        col_lower = col.lower()
+        
+        # Skip dimension column (usually first)
+        if col == non_rank_columns[0]:
+            print(f"DEBUG: SKIPPING dimension column: {col}")
+            continue
+            
+        # Skip utility columns
+        if col_lower in ['is_subject', 'subject']:
+            print(f"DEBUG: SKIPPING utility column: {col}")
+            continue
+            
+        # This must be a metric column - use it!
+        print(f"DEBUG: FOUND first metric column: {col}")
+        val_col = col
+        break
+    
+    # Final fallback if somehow we have no good columns
     if not val_col and len(non_rank_columns) > 1:
-        print("DEBUG: No metric match, using first non-dimension column")
-        val_col = non_rank_columns[1]  # Second column (first value column)
-        print(f"DEBUG: SELECTED first value column: {val_col}")
-    
-    # Strategy 3: Absolute fallback - use second column regardless
-    if not val_col and len(all_columns) > 1:
-        val_col = all_columns[1]
-        print(f"DEBUG: EMERGENCY fallback to second column: {val_col}")
+        val_col = non_rank_columns[1]
+        print(f"DEBUG: FALLBACK to second column: {val_col}")
     
     print(f"DEBUG: FINAL selected column: {val_col}")
     if val_col and not original_table.empty:
