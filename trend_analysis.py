@@ -216,9 +216,15 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
         print(f"Processing chart: '{name}'")
         print(f"Chart vars keys: {list(chart_vars.keys())}")
         
-        # Add hide_difference_chart logic when growth_type is specified
+        # Add hide_difference_chart logic when growth_type is specified  
         if param_dict.get("growth_type"):
             chart_vars["hide_difference_chart"] = True
+            # Set difference chart series to empty to prevent sample data
+            chart_vars["difference_series"] = []
+            chart_vars["difference_x_axis_categories"] = []
+            chart_vars["difference_y_axis"] = None
+            chart_vars["difference_meta_df_id"] = None
+            chart_vars["difference_metric_name"] = ""
         
         # Filter out difference chart variables from chart_vars if hide_difference_chart is set
         filtered_chart_vars = {}
