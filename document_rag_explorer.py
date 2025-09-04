@@ -413,74 +413,41 @@ def find_matching_documents(user_question, topics, loaded_sources, base_url, max
     logger.info("DEBUG: Starting embedding-based document matching")
     
     try:
-        # Import the embedding manager from the platform
-        from sp_tools.embedding_match import EmbeddingMatchManager
-        
-        # Get context from skill framework - need to access the LLM gateway
-        # This is a temporary approach - in production should be passed properly
         import os
-        copilot_id = os.environ.get('AR_COPILOT_ID', 'document_rag')
         
-        # Create embedding manager for the loaded sources  
-        logger.info(f"DEBUG: Creating EmbeddingMatchManager with {len(loaded_sources)} sources")
-        source_texts = [s['text'] for s in loaded_sources]
+        logger.info(f"DEBUG: Matching against {len(loaded_sources)} document sources")
         
-        # Create a mock llm_gateway object for now - need proper integration
-        class MockLLMGateway:
-            def __init__(self):
-                self.tenant = os.environ.get('AR_TENANT_ID', 'gpinsurance')
-                self.copilot = copilot_id
-        
-        mock_gateway = MockLLMGateway()
-        
-        loaded_source_matcher = EmbeddingMatchManager(
-            mock_gateway,
-            f"document_rag_{copilot_id}",
-            source_texts
-        )
-        
-        logger.info("DEBUG: EmbeddingMatchManager created successfully")
-        
-        # Get matches using embeddings
-        loaded_source_matches = []
-        if user_question:
-            logger.info(f"DEBUG: Matching user question: {user_question}")
-            matches = loaded_source_matcher.match(user_question, thresh=match_threshold, top_n=max_sources, with_scores=True)
-            loaded_source_matches.extend(matches)
-            logger.info(f"DEBUG: Found {len(matches)} matches for user question")
-        
-        # Add matches for topics
-        for topic in topics:
-            logger.info(f"DEBUG: Matching topic: {topic}")
-            topic_matches = loaded_source_matcher.match(topic, thresh=match_threshold, top_n=max_sources, with_scores=True)
-            loaded_source_matches.extend(topic_matches)
-            logger.info(f"DEBUG: Found {len(topic_matches)} matches for topic")
-        
-        # Sort by score (higher is better)
-        loaded_source_matches = sorted(loaded_source_matches, key=lambda x: x[1], reverse=True)
-        logger.info(f"DEBUG: Total matches before filtering: {len(loaded_source_matches)}")
-        
-        # Convert matches back to document format
+        # Simple text-based matching since sp_tools is not available
         matches = []
         chars_so_far = 0
         
-        for match_text, score in loaded_source_matches:
+        # Combine all search terms
+        search_terms = []
+        if user_question:
+            search_terms.append(user_question)
+        search_terms.extend([topic for topic in topics if topic])
+        
+        logger.info(f"DEBUG: Searching for {len(search_terms)} search terms")
+        
+        # Score each document source
+        for source in loaded_sources:
             if len(matches) >= int(max_sources) or chars_so_far >= int(max_characters):
                 break
-                
-            # Find the original source
-            found_source = None
-            for loaded_source in loaded_sources:
-                if loaded_source["text"] == match_text:
-                    found_source = loaded_source.copy()
-                    break
-                    
-            if found_source:
-                found_source['match_score'] = score
-                found_source['url'] = f"{base_url.rstrip('/')}/{found_source['file_name']}#page={found_source['chunk_index']}"
-                matches.append(found_source)
-                chars_so_far += len(found_source['text'])
-                logger.info(f"DEBUG: Added match with score {score}: {found_source['file_name']} page {found_source['chunk_index']}")
+            
+            # Calculate relevance score
+            score = calculate_simple_relevance(source['text'], search_terms)
+            
+            if score >= float(match_threshold):
+                source_copy = source.copy()
+                source_copy['match_score'] = score
+                source_copy['url'] = f"{base_url.rstrip('/')}/{source_copy['file_name']}#page={source_copy['chunk_index']}"
+                matches.append(source_copy)
+                chars_so_far += len(source_copy['text'])
+                logger.info(f"DEBUG: Added match with score {score}: {source_copy['file_name']} page {source_copy['chunk_index']}")
+        
+        # Sort by relevance score (descending)
+        matches.sort(key=lambda x: x['match_score'], reverse=True)
+        matches = matches[:int(max_sources)]
         
         logger.info(f"DEBUG: Final matches: {len(matches)}")
         return [SimpleNamespace(**match) for match in matches]
