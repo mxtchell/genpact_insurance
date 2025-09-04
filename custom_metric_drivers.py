@@ -19,7 +19,7 @@ from genpact_formatting import genpact_format_number
 logger = logging.getLogger(__name__)
 
 @skill(
-    name=metric_driver_analysis_config.name,
+    name="Custom Metric Drivers",
     llm_name=metric_driver_analysis_config.llm_name,
     description=metric_driver_analysis_config.description,
     capabilities=metric_driver_analysis_config.capabilities,
@@ -252,18 +252,30 @@ def create_vertical_metrics_chart(table, env=None):
     if table is None or table.empty:
         return None
     
-    # Find current and previous period columns
+    print(f"DEBUG CHART: Table columns: {list(table.columns)}")
+    print(f"DEBUG CHART: Table shape: {table.shape}")
+    print(f"DEBUG CHART: Sample data:")
+    print(table.head(3))
+    
+    # Find current and previous period columns - look for VALUE and PREV VALUE
     current_col = None
     previous_col = None
     
     for col in table.columns:
-        if 'current' in col.lower() or '(2024)' in col or '(2025)' in col:
+        col_lower = col.lower()
+        if 'value' in col_lower and 'prev' not in col_lower:
             current_col = col
-        elif 'previous' in col.lower() or '(2023)' in col or '(2024)' in col:
+            print(f"DEBUG CHART: Found current column: {col}")
+        elif 'prev value' in col_lower or ('previous' in col_lower and 'value' in col_lower):
             previous_col = col
+            print(f"DEBUG CHART: Found previous column: {col}")
     
-    if not current_col or not previous_col:
+    if not current_col:
+        print("DEBUG CHART: No current column found, chart disabled")
         return None
+    
+    if not previous_col:
+        print("DEBUG CHART: No previous column found, will show single period chart")
     
     # Get period labels
     current_period = "Current"
@@ -287,6 +299,7 @@ def create_vertical_metrics_chart(table, env=None):
     
     for idx, row in table.head(10).iterrows():
         metric_name = str(row.iloc[0])  # First column is metric name
+        print(f"DEBUG CHART: Processing metric: {metric_name}")
         
         # Get current period value
         current_val_str = str(row[current_col]) if pd.notna(row[current_col]) else "0"
@@ -295,14 +308,18 @@ def create_vertical_metrics_chart(table, env=None):
             current_val = float(current_clean)
         except:
             current_val = 0
+        print(f"DEBUG CHART: Current value: '{current_val_str}' -> {current_val}")
             
-        # Get previous period value  
-        prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
-        prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
-        try:
-            prev_val = float(prev_clean)
-        except:
-            prev_val = 0
+        # Get previous period value if column exists
+        prev_val = 0
+        if previous_col:
+            prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
+            prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+            try:
+                prev_val = float(prev_clean)
+            except:
+                prev_val = 0
+            print(f"DEBUG CHART: Previous value: '{prev_val_str}' -> {prev_val}")
         
         categories.append(metric_name)
         current_values.append(current_val)
@@ -322,31 +339,46 @@ def create_vertical_metrics_chart(table, env=None):
             current_formatted.append(genpact_format_number(curr, add_dollar_sign=True))
             previous_formatted.append(genpact_format_number(prev, add_dollar_sign=True))
     
+    # Create chart series based on available data
+    series_data = [
+        {
+            "name": current_period,
+            "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
+            "color": "#2E86C1"
+        }
+    ]
+    
+    # Add previous period series only if we have previous data
+    if previous_col:
+        series_data.append({
+            "name": previous_period,
+            "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
+            "color": "#8E44AD"
+        })
+    
+    chart_title = f"Metrics Overview - {current_period}"
+    if previous_col:
+        chart_title = f"Metrics Comparison - {current_period} vs {previous_period}"
+    
+    print(f"DEBUG CHART: Chart title: {chart_title}")
+    print(f"DEBUG CHART: Categories: {categories}")
+    print(f"DEBUG CHART: Series count: {len(series_data)}")
+    
     # Create vertical column chart configuration
     column_chart = {
         "type": "highcharts",
         "config": {
             "chart": {"type": "column"},
-            "title": {"text": f"Metrics Comparison - {current_period} vs {previous_period}"},
+            "title": {"text": chart_title},
             "xAxis": {"categories": categories},
             "yAxis": {
                 "title": {"text": "Value"}
             },
             "tooltip": {
+                "pointFormat": "<b>{series.name}: {point.formatted}</b>",
                 "valueSuffix": "%" if is_percentage else ""
             },
-            "series": [
-                {
-                    "name": current_period,
-                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
-                    "color": "#2E86C1"
-                },
-                {
-                    "name": previous_period,
-                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
-                    "color": "#8E44AD"
-                }
-            ],
+            "series": series_data,
             "plotOptions": {
                 "column": {
                     "dataLabels": {
