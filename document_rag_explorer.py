@@ -81,7 +81,7 @@ def document_rag_explorer(parameters: SkillInput):
     user_question = parameters.arguments.user_question
     base_url = parameters.arguments.base_url
     max_sources = parameters.arguments.max_sources or 5
-    match_threshold = parameters.arguments.match_threshold or 0.3
+    match_threshold = parameters.arguments.match_threshold or 0.2
     max_characters = parameters.arguments.max_characters or 3000
     max_prompt = parameters.arguments.max_prompt
     
@@ -468,11 +468,11 @@ def calculate_simple_relevance(text, search_terms):
     
     for term in search_terms:
         if term and term.lower() in text_lower:
-            # Count occurrences and normalize
+            # Count occurrences and normalize - give higher score for exact matches
             occurrences = text_lower.count(term.lower())
-            term_score = min(occurrences * 0.1, 0.5)
+            term_score = min(occurrences * 0.4, 1.0)  # Higher score for exact phrase matches
             score += term_score
-            logger.info(f"DEBUG: Found '{term}' {occurrences} times, added {term_score} to score")
+            logger.info(f"DEBUG: Found exact match '{term}' {occurrences} times, added {term_score} to score")
         else:
             # Check for partial matches
             term_words = term.lower().split()
@@ -480,11 +480,9 @@ def calculate_simple_relevance(text, search_terms):
                 if len(word) > 3 and word in text_lower:  # Only check words longer than 3 chars
                     occurrences = text_lower.count(word)
                     if occurrences > 0:
-                        # Give higher scores for key terms
-                        if word in ['airport', 'airports', 'disruption', 'disruptions', 'weather', 'temperature', 'flooding', 'storm', 'wind', 'port', 'ports', 'closure', 'closures', 'close', 'closed']:
-                            term_score = min(occurrences * 0.2, 0.8)  # Much higher score for key terms
-                        else:
-                            term_score = min(occurrences * 0.05, 0.3)  # Lower score for other partial matches
+                        # Generic scoring based on word length and frequency
+                        base_score = 0.2 if len(word) > 6 else 0.15  # Longer words get slightly higher base score
+                        term_score = min(occurrences * base_score, 0.5)
                         score += term_score
                         logger.info(f"DEBUG: Found partial match '{word}' {occurrences} times, added {term_score} to score")
     
@@ -721,7 +719,7 @@ if __name__ == '__main__':
             "user_question": "What information is available about clouds?",
             "base_url": "https://example.com/kb/",
             "max_sources": 3,
-            "match_threshold": 0.3
+            "match_threshold": 0.2
         }
     )
     out = document_rag_explorer(skill_input)
