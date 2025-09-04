@@ -186,9 +186,10 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
     insight_template = jinja2.Template(insight_prompt).render(**{"facts": facts})
     max_response_prompt = jinja2.Template(max_prompt).render(**{"facts": facts})
 
-    # adding insights
-    ar_utils = ArUtils()
-    insights = ar_utils.get_llm_response(insight_template)
+    # adding insights (disabled for testing)
+    # ar_utils = ArUtils()
+    # insights = ar_utils.get_llm_response(insight_template)
+    insights = "Testing insights disabled"
 
     tab_vars = {"headline": title if title else "Total",
                 "sub_headline": subtitle or "Trend Analysis",
@@ -198,18 +199,25 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
 
     viz = []
     slides = []
+    print(f"\n=== CHART NAMES DEBUG ===")
+    for name in charts.keys():
+        print(f"Available chart: '{name}'")
+    print("=========================\n")
+    
     for name, chart_vars in charts.items():
-        print(f"DEBUG: Chart name: '{name}'")  # Debug output
-        
-        # Skip difference charts - only show absolute and growth charts
-        if "difference" in name.lower() or "yoy difference" in name.lower():
-            print(f"DEBUG: Skipping difference chart: {name}")
+        print(f"Processing: '{name}'")
+        # Skip difference charts - only show absolute and growth charts  
+        name_lower = name.lower()
+        if ("difference" in name_lower or 
+            "delta" in name_lower or
+            " change" in name_lower and "%" not in name_lower):
+            print(f"  -> SKIPPING (difference chart)")
             continue
+        print(f"  -> ADDING to viz")
             
         chart_vars["footer"] = f"*{chart_vars['footer']}" if chart_vars.get('footer') else "No additional info."
         rendered = wire_layout(json.loads(chart_viz_layout), {**tab_vars, **chart_vars})
         viz.append(SkillVisualization(title=name, layout=rendered))
-        print(f"DEBUG: Added chart: {name}")
 
         prefixes = ["absolute_", "growth_"]  # Removed "difference_" to disable difference charts
 
@@ -242,10 +250,10 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
 
 if __name__ == '__main__':
     skill_input: SkillInput = trend.create_input(arguments={
-        'metrics': ["sales", "volume"],
-        'periods': ["2021", "2022"],
-        'growth_type': "Y/Y",
-        "other_filters": [{"dim": "brand", "op": "=", "val": ["barilla"]}]
+        'breakouts': ["distribution_channel"],
+        'periods': ["q1 2024","q2 2024","q3 2024","q4 2024","q1 2025","q2 2025"],
+        'metrics': ["underwriting_profit"],
+        'growth_type': "Y/Y"
     })
     out = trend(skill_input)
     preview_skill(trend, out)
