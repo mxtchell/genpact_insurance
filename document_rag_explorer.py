@@ -81,6 +81,7 @@ def document_rag_explorer(parameters: SkillInput):
     main_html = ""
     sources_html = ""
     title = "Document Analysis"
+    response_data = None
     
     try:
         # Load document sources from pack.json
