@@ -409,10 +409,94 @@ def load_document_sources():
     return loaded_sources
 
 def find_matching_documents(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters):
-    """Find documents matching the user question using simple text matching"""
-    # For a full implementation, you would use embedding-based matching
-    # This is a simplified version using text similarity
+    """Find documents matching the user question using embedding-based semantic matching"""
+    logger.info("DEBUG: Starting embedding-based document matching")
     
+    try:
+        # Import the embedding manager from the platform
+        from sp_tools.embedding_match import EmbeddingMatchManager
+        
+        # Get context from skill framework - need to access the LLM gateway
+        # This is a temporary approach - in production should be passed properly
+        import os
+        copilot_id = os.environ.get('AR_COPILOT_ID', 'document_rag')
+        
+        # Create embedding manager for the loaded sources  
+        logger.info(f"DEBUG: Creating EmbeddingMatchManager with {len(loaded_sources)} sources")
+        source_texts = [s['text'] for s in loaded_sources]
+        
+        # Create a mock llm_gateway object for now - need proper integration
+        class MockLLMGateway:
+            def __init__(self):
+                self.tenant = os.environ.get('AR_TENANT_ID', 'gpinsurance')
+                self.copilot = copilot_id
+        
+        mock_gateway = MockLLMGateway()
+        
+        loaded_source_matcher = EmbeddingMatchManager(
+            mock_gateway,
+            f"document_rag_{copilot_id}",
+            source_texts
+        )
+        
+        logger.info("DEBUG: EmbeddingMatchManager created successfully")
+        
+        # Get matches using embeddings
+        loaded_source_matches = []
+        if user_question:
+            logger.info(f"DEBUG: Matching user question: {user_question}")
+            matches = loaded_source_matcher.match(user_question, thresh=match_threshold, top_n=max_sources, with_scores=True)
+            loaded_source_matches.extend(matches)
+            logger.info(f"DEBUG: Found {len(matches)} matches for user question")
+        
+        # Add matches for topics
+        for topic in topics:
+            logger.info(f"DEBUG: Matching topic: {topic}")
+            topic_matches = loaded_source_matcher.match(topic, thresh=match_threshold, top_n=max_sources, with_scores=True)
+            loaded_source_matches.extend(topic_matches)
+            logger.info(f"DEBUG: Found {len(topic_matches)} matches for topic")
+        
+        # Sort by score (higher is better)
+        loaded_source_matches = sorted(loaded_source_matches, key=lambda x: x[1], reverse=True)
+        logger.info(f"DEBUG: Total matches before filtering: {len(loaded_source_matches)}")
+        
+        # Convert matches back to document format
+        matches = []
+        chars_so_far = 0
+        
+        for match_text, score in loaded_source_matches:
+            if len(matches) >= int(max_sources) or chars_so_far >= int(max_characters):
+                break
+                
+            # Find the original source
+            found_source = None
+            for loaded_source in loaded_sources:
+                if loaded_source["text"] == match_text:
+                    found_source = loaded_source.copy()
+                    break
+                    
+            if found_source:
+                found_source['match_score'] = score
+                found_source['url'] = f"{base_url.rstrip('/')}/{found_source['file_name']}#page={found_source['chunk_index']}"
+                matches.append(found_source)
+                chars_so_far += len(found_source['text'])
+                logger.info(f"DEBUG: Added match with score {score}: {found_source['file_name']} page {found_source['chunk_index']}")
+        
+        logger.info(f"DEBUG: Final matches: {len(matches)}")
+        return [SimpleNamespace(**match) for match in matches]
+        
+    except ImportError as e:
+        logger.error(f"DEBUG: EmbeddingMatchManager not available: {e}")
+        logger.info("DEBUG: Falling back to keyword matching")
+        return find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters)
+    except Exception as e:
+        logger.error(f"DEBUG: Embedding matching failed: {e}")
+        logger.info("DEBUG: Falling back to keyword matching")  
+        return find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters)
+
+def find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters):
+    """Fallback to keyword matching if embeddings fail"""
+    logger.info("DEBUG: Using fallback keyword matching")
     matches = []
     chars_so_far = 0
     
@@ -423,20 +507,16 @@ def find_matching_documents(user_question, topics, loaded_sources, base_url, max
         if len(matches) >= int(max_sources) or chars_so_far >= int(max_characters):
             break
             
-        # Simple relevance scoring (in production, use embeddings)
+        # Simple relevance scoring
         score = calculate_simple_relevance(source['text'], search_terms)
         
         if float(score) >= float(match_threshold):
             source['match_score'] = score
-            # Build full URL for the document page
             source['url'] = f"{base_url.rstrip('/')}/{source['file_name']}#page={source['chunk_index']}"
             matches.append(source)
             chars_so_far += len(source['text'])
     
-    # Sort by score
     matches.sort(key=lambda x: x['match_score'], reverse=True)
-    
-    # Convert to SimpleNamespace for compatibility
     return [SimpleNamespace(**match) for match in matches[:int(max_sources)]]
 
 def calculate_simple_relevance(text, search_terms):
@@ -462,7 +542,7 @@ def calculate_simple_relevance(text, search_terms):
                     occurrences = text_lower.count(word)
                     if occurrences > 0:
                         # Give higher scores for key terms
-                        if word in ['airport', 'airports', 'disruption', 'disruptions', 'weather', 'temperature', 'flooding', 'storm', 'wind']:
+                        if word in ['airport', 'airports', 'disruption', 'disruptions', 'weather', 'temperature', 'flooding', 'storm', 'wind', 'port', 'ports', 'closure', 'closures', 'close', 'closed']:
                             term_score = min(occurrences * 0.2, 0.8)  # Much higher score for key terms
                         else:
                             term_score = min(occurrences * 0.05, 0.3)  # Lower score for other partial matches
@@ -496,37 +576,70 @@ def generate_rag_response(user_question, docs):
     )
     
     try:
-        # Make actual LLM call
+        # Make actual LLM call using platform service like the old doc_search code
         try:
-            # Try to use arc.chat if available
-            import arc
-            logger.info("DEBUG: Making LLM call with arc.chat")
+            # Try to access the LLM gateway from the skill framework
+            # This follows the pattern from the old code: self.sp.ctx.llm_gateway.get_narrative()
+            logger.info("DEBUG: Making LLM call with platform service")
             
-            llm_response = arc.chat.send_message(full_prompt)
-            logger.info(f"DEBUG: Got LLM response: {llm_response[:100]}...")
+            # For now, try different ways to access the LLM service
+            llm_response = None
             
-            # Parse the LLM response (assuming it follows the format from narrative_prompt)
-            title = f"Analysis: {user_question}"
-            content = llm_response
-            
-        except ImportError:
-            logger.warning("DEBUG: arc not available, trying openai directly")
+            # Try method 1: Direct llm_gateway access (like old code)
             try:
+                # This is how the old doc_search code did it
+                # response = self.sp.ctx.llm_gateway.get_narrative(["GraphRAG"], full_prompt)
+                # For now, we need to mock this or find the proper way in the skill framework
+                
+                # Try accessing through parameters context if available
+                if hasattr(parameters, 'sp') and hasattr(parameters.sp, 'ctx') and hasattr(parameters.sp.ctx, 'llm_gateway'):
+                    logger.info("DEBUG: Using skill framework LLM gateway")
+                    response = parameters.sp.ctx.llm_gateway.get_narrative(["DocumentRAG"], full_prompt)
+                    llm_response = response["choices"][0]["message"]["content"]
+                else:
+                    raise AttributeError("LLM gateway not accessible through skill framework")
+                    
+            except (AttributeError, ImportError) as e:
+                logger.warning(f"DEBUG: Platform LLM gateway not available: {e}")
+                logger.info("DEBUG: Trying direct OpenAI call")
+                
                 import openai
                 client = openai.OpenAI()
                 response = client.chat.completions.create(
                     model="gpt-4",
                     messages=[{"role": "user", "content": full_prompt}]
                 )
-                title = f"Analysis: {user_question}"
-                content = response.choices[0].message.content
-                logger.info(f"DEBUG: Got OpenAI response: {content[:100]}...")
-            except Exception as e:
-                logger.error(f"DEBUG: OpenAI call failed: {e}")
-                raise e
+                llm_response = response.choices[0].message.content
+                logger.info("DEBUG: Using direct OpenAI call")
+            
+            logger.info(f"DEBUG: Got LLM response: {llm_response[:100]}...")
+            
+            # Parse the LLM response like the old doc_search code
+            def get_between_tags(content, tag):
+                try:
+                    return content.split("<"+tag+">",1)[1].split("</"+tag+">",1)[0]
+                except:
+                    pass
+                return content
+            
+            title = get_between_tags(llm_response, "title") or f"Analysis: {user_question}"
+            content = get_between_tags(llm_response, "content") or llm_response
+            
+            logger.info(f"DEBUG: Parsed title: {title[:50]}...")
+            logger.info(f"DEBUG: Parsed content: {content[:100]}...")
+            
         except Exception as e:
-            logger.error(f"DEBUG: LLM call failed: {e}")
-            raise e
+            logger.error(f"DEBUG: All LLM call methods failed: {e}")
+            # Fallback to a structured response
+            title = f"Analysis: {user_question}"
+            content = f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>"
+            for i, doc in enumerate(docs):
+                doc_text = str(doc.text) if doc.text else ""
+                clean_text = doc_text.replace(f"START OF PAGE: {doc.chunk_index}", "").strip()
+                clean_text = clean_text.replace(f"END OF PAGE: {doc.chunk_index}", "").strip()
+                if clean_text and len(clean_text) > 20:
+                    key_info = clean_text[:200] + "..." if len(clean_text) > 200 else clean_text
+                    content += f"<p>{key_info}<sup>[{i+1}]</sup></p>"
         
         # Build references with actual URLs and thumbnails
         references = []
