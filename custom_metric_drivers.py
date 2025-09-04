@@ -674,7 +674,22 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                     "parentId": "ChartContainer0",
                     "flex": ""
                 },
-                # Insights section
+                # Data table (below chart)
+                {
+                    "name": "DataTable0",
+                    "type": "DataTable",
+                    "children": "",
+                    "columns": [],
+                    "data": [],
+                    "parentId": "FlexContainer4",
+                    "caption": "",
+                    "styles": {
+                        "td": {
+                            "vertical-align": "middle"
+                        }
+                    }
+                },
+                # Insights section (below table)
                 {
                     "name": "Markdown0",
                     "type": "Markdown",
@@ -689,21 +704,6 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                         "padding": "15px"
                     },
                     "parentId": "FlexContainer4"
-                },
-                # Data table (moved below chart)
-                {
-                    "name": "DataTable0",
-                    "type": "DataTable",
-                    "children": "",
-                    "columns": [],
-                    "data": [],
-                    "parentId": "FlexContainer4",
-                    "caption": "",
-                    "styles": {
-                        "td": {
-                            "vertical-align": "middle"
-                        }
-                    }
                 }
             ]
         },
@@ -886,38 +886,6 @@ def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=N
                     "parentId": "ChartContainer0",
                     "flex": ""
                 },
-                # Insights section
-                {
-                    "name": "Markdown0",
-                    "type": "Markdown",
-                    "children": "",
-                    "text": "",
-                    "style": {
-                        "fontSize": "16px",
-                        "color": "#000000",
-                        "backgroundColor": "#ffffff",
-                        "border": "none",
-                        "margin": "10px 0",
-                        "padding": "15px"
-                    },
-                    "parentId": "FlexContainer4"
-                },
-                # Insights section
-                {
-                    "name": "Markdown0",
-                    "type": "Markdown",
-                    "children": "",
-                    "text": "",
-                    "style": {
-                        "fontSize": "16px",
-                        "color": "#000000",
-                        "backgroundColor": "#ffffff",
-                        "border": "none",
-                        "margin": "10px 0",
-                        "padding": "15px"
-                    },
-                    "parentId": "FlexContainer4"
-                },
                 # Data table (below chart)
                 {
                     "name": "DataTable0",
@@ -932,6 +900,22 @@ def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=N
                             "vertical-align": "middle"
                         }
                     }
+                },
+                # Insights section (below table)
+                {
+                    "name": "Markdown0",
+                    "type": "Markdown",
+                    "children": "",
+                    "text": "",
+                    "style": {
+                        "fontSize": "16px",
+                        "color": "#000000",
+                        "backgroundColor": "#ffffff",
+                        "border": "none",
+                        "margin": "10px 0",
+                        "padding": "15px"
+                    },
+                    "parentId": "FlexContainer4"
                 }
             ]
         },
