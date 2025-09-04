@@ -565,20 +565,12 @@ def generate_rag_response(user_question, docs):
             'thumbnail': ""  # Would be populated with actual thumbnail if available
         }
         references.append(ref)
-    
-    return {
+        
+        return {
             'title': title,
             'content': content,
             'references': references,
             'raw_prompt': full_prompt  # For debugging
-        }
-        
-    except Exception as e:
-        logger.error(f"Error generating LLM response: {str(e)}")
-        return {
-            'title': 'Error Processing Documents',
-            'content': f'<p>Error generating response: {str(e)}</p>',
-            'references': []
         }
 
 def force_ascii_replace(html_string):
