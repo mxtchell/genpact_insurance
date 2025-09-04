@@ -124,6 +124,17 @@ def trend(parameters: SkillInput):
     insights_dfs = [env.trend.df_notes, env.trend.facts, env.trend.top_facts, env.trend.bottom_facts]
 
     charts = env.trend.get_dynamic_layout_chart_vars()
+    
+    # Filter out difference charts when growth_type is specified
+    if param_dict.get("growth_type"):
+        filtered_charts = {}
+        for chart_name, chart_vars in charts.items():
+            # Skip charts with "difference" in the name
+            if "difference" in chart_name.lower() or "delta" in chart_name.lower():
+                print(f"Skipping difference chart: {chart_name}")
+                continue
+            filtered_charts[chart_name] = chart_vars
+        charts = filtered_charts
 
     viz, slides, insights, final_prompt = render_layout(charts,
                                                 tables,
@@ -216,6 +227,21 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
                 print(f"  -> REMOVING difference variable: {key}")
                 continue
             filtered_chart_vars[key] = value
+        
+        # If growth_type is specified, also remove difference from series data
+        if param_dict.get("growth_type") and "series" in filtered_chart_vars:
+            series = filtered_chart_vars["series"]
+            if isinstance(series, list):
+                # Filter out any series with "difference" in the name
+                filtered_series = []
+                for s in series:
+                    if isinstance(s, dict) and "name" in s:
+                        series_name = s["name"].lower()
+                        if "difference" in series_name or "delta" in series_name:
+                            print(f"  -> REMOVING difference series: {s['name']}")
+                            continue
+                    filtered_series.append(s)
+                filtered_chart_vars["series"] = filtered_series
             
         filtered_chart_vars["footer"] = f"*{filtered_chart_vars['footer']}" if filtered_chart_vars.get('footer') else "No additional info."
         rendered = wire_layout(json.loads(chart_viz_layout), {**tab_vars, **filtered_chart_vars})
@@ -255,11 +281,11 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
 
 if __name__ == '__main__':
     skill_input: SkillInput = trend.create_input(arguments={
-        'breakouts': [],
-        'periods': ["2025"],
-        'metrics': ["nwp"],
+        'breakouts': ["distribution_channel"],
+        'periods': ["q1 2024", "q2 2024", "q1 2025", "q2 2025"],
+        'metrics': ["underwriting_profit"],
         'growth_type': "Y/Y",
-        'time_granularity': "quarter"
+        'time_granularity': "month"
     })
     out = trend(skill_input)
     preview_skill(trend, out)
