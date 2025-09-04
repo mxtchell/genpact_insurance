@@ -496,42 +496,37 @@ def generate_rag_response(user_question, docs):
     )
     
     try:
-        # TODO: Replace with actual LLM call
-        # For now, create a structured response based on the sources
-        title = f"Analysis: {user_question}"
-        
-        # Build clean, formatted content with citations like the example
-        content_parts = [
-            f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>",
-            "<br>"
-        ]
-        
-        # Extract key information from each relevant document
-        for i, doc in enumerate(docs):
-            doc_text = str(doc.text) if doc.text else ""
+        # Make actual LLM call
+        try:
+            # Try to use arc.chat if available
+            import arc
+            logger.info("DEBUG: Making LLM call with arc.chat")
             
-            # Clean up the text - remove "START OF PAGE:" markers and format nicely
-            clean_text = doc_text.replace(f"START OF PAGE: {doc.chunk_index}", "").strip()
-            clean_text = clean_text.replace(f"END OF PAGE: {doc.chunk_index}", "").strip()
+            llm_response = arc.chat.send_message(full_prompt)
+            logger.info(f"DEBUG: Got LLM response: {llm_response[:100]}...")
             
-            # Get first meaningful sentence or key info (up to 200 chars)
-            if clean_text:
-                # Split by sentences and get first substantial one
-                sentences = clean_text.split('.')
-                key_info = ""
-                for sentence in sentences:
-                    sentence = sentence.strip()
-                    if len(sentence) > 20:  # Skip very short fragments
-                        key_info = sentence + "."
-                        break
-                
-                if not key_info and len(clean_text) > 20:
-                    key_info = clean_text[:200] + "..."
-                
-                if key_info:
-                    content_parts.append(f"<p>{key_info}<sup>[{i+1}]</sup></p>")
-        
-        content = "\n".join(content_parts)
+            # Parse the LLM response (assuming it follows the format from narrative_prompt)
+            title = f"Analysis: {user_question}"
+            content = llm_response
+            
+        except ImportError:
+            logger.warning("DEBUG: arc not available, trying openai directly")
+            try:
+                import openai
+                client = openai.OpenAI()
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[{"role": "user", "content": full_prompt}]
+                )
+                title = f"Analysis: {user_question}"
+                content = response.choices[0].message.content
+                logger.info(f"DEBUG: Got OpenAI response: {content[:100]}...")
+            except Exception as e:
+                logger.error(f"DEBUG: OpenAI call failed: {e}")
+                raise e
+        except Exception as e:
+            logger.error(f"DEBUG: LLM call failed: {e}")
+            raise e
         
         # Build references with actual URLs and thumbnails
         references = []
