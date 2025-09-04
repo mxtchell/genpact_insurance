@@ -18,6 +18,105 @@ from genpact_formatting import genpact_format_number
 
 logger = logging.getLogger(__name__)
 
+def format_period_name(period):
+    """Format period name with proper capitalization"""
+    if not period:
+        return "Current"
+    
+    period_str = str(period).strip()
+    
+    # Handle months - capitalize first letter
+    months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+              'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    
+    for month in months:
+        if period_str.lower().startswith(month):
+            # Capitalize month name
+            formatted = month.capitalize() + period_str[len(month):]
+            return formatted
+    
+    # Handle quarters - ensure proper case
+    if period_str.lower().startswith('q'):
+        return period_str.upper()
+    
+    # Default - title case
+    return period_str.title()
+
+def calculate_previous_period_yoy(current_period):
+    """Calculate year-over-year previous period"""
+    if not current_period:
+        return "Previous"
+    
+    period_str = str(current_period).strip().lower()
+    
+    # Handle months with year (e.g., "jun 2025" -> "jun 2024")
+    if any(month in period_str for month in ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+                                              'jul', 'aug', 'sep', 'oct', 'nov', 'dec']):
+        parts = period_str.split()
+        if len(parts) >= 2 and parts[-1].isdigit():
+            month_part = ' '.join(parts[:-1])
+            year = int(parts[-1])
+            prev_year = year - 1
+            return format_period_name(f"{month_part} {prev_year}")
+    
+    # Handle quarters (e.g., "Q2 2025" -> "Q2 2024")
+    if period_str.startswith('q') and len(period_str.split()) == 2:
+        parts = period_str.split()
+        if parts[1].isdigit():
+            quarter = parts[0]
+            year = int(parts[1])
+            prev_year = year - 1
+            return f"{quarter.upper()} {prev_year}"
+    
+    return "Previous"
+
+def calculate_previous_period_pop(current_period):
+    """Calculate period-over-period previous period"""
+    if not current_period:
+        return "Previous"
+    
+    period_str = str(current_period).strip().lower()
+    
+    # Handle months (e.g., "jun 2025" -> "may 2025")
+    months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 
+              'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    
+    for i, month in enumerate(months):
+        if period_str.startswith(month):
+            if ' ' in period_str:
+                year_part = period_str.split()[1]
+                if i > 0:
+                    # Previous month same year
+                    prev_month = months[i-1]
+                    return format_period_name(f"{prev_month} {year_part}")
+                else:
+                    # December of previous year
+                    try:
+                        year = int(year_part)
+                        return format_period_name(f"dec {year-1}")
+                    except:
+                        return format_period_name("dec")
+            break
+    
+    # Handle quarters (e.g., "Q2 2025" -> "Q1 2025")
+    if period_str.startswith('q') and len(period_str.split()) == 2:
+        parts = period_str.split()
+        if parts[1].isdigit():
+            quarter_num = int(parts[0][1])
+            year = parts[1]
+            if quarter_num > 1:
+                prev_quarter = f"Q{quarter_num-1}"
+                return f"{prev_quarter} {year}"
+            else:
+                # Q4 of previous year
+                try:
+                    prev_year = int(year) - 1
+                    return f"Q4 {prev_year}"
+                except:
+                    return "Q4"
+    
+    return "Previous"
+
 @skill(
     name="Custom Metric Drivers",
     llm_name=metric_driver_analysis_config.llm_name,
@@ -182,29 +281,31 @@ def create_comparison_bar_chart(table, name, env=None):
     # Extract metric name and time periods
     metric_name = metric_col.split('(')[0].strip() if metric_col and '(' in metric_col else (metric_col if metric_col else "Value")
     
-    # Get period labels from column names
-    current_period = "Q2 2025"
-    previous_period = "Q2 2024"
+    # Get period labels with proper formatting
+    current_period = "Current"
+    previous_period = "Previous"
     
-    # Try to extract periods from column names
-    if '(' in current_col and ')' in current_col:
-        current_period = current_col.split('(')[1].split(')')[0]
-    elif env and hasattr(env, 'periods') and env.periods:
+    # Extract periods from environment or column names
+    if env and hasattr(env, 'periods') and env.periods:
         period = env.periods[0] if isinstance(env.periods, list) else env.periods
-        current_period = period.upper() if period.lower().startswith('q') else period
+        # Properly format the period name
+        current_period = format_period_name(period)
+        
+        # Calculate previous period based on growth type
+        if hasattr(env, 'growth_type'):
+            if env.growth_type == "Y/Y":
+                previous_period = calculate_previous_period_yoy(period)
+            elif env.growth_type == "P/P":
+                previous_period = calculate_previous_period_pop(period)
+    
+    # Try to extract periods from column names if available
+    if '(' in current_col and ')' in current_col:
+        extracted_period = current_col.split('(')[1].split(')')[0]
+        current_period = format_period_name(extracted_period)
     
     if previous_col and '(' in previous_col and ')' in previous_col:
-        previous_period = previous_col.split('(')[1].split(')')[0]
-    elif env and hasattr(env, 'growth_type'):
-        if env.growth_type == "Y/Y":
-            # Year over year comparison
-            if current_period.upper().startswith('Q') and len(current_period.split()) == 2:
-                parts = current_period.split()
-                prev_year = str(int(parts[1]) - 1)
-                previous_period = f"{parts[0]} {prev_year}"
-        elif env.growth_type == "P/P":
-            # Period over period
-            previous_period = "Q1 2025"  # Previous quarter
+        extracted_prev = previous_col.split('(')[1].split(')')[0]
+        previous_period = format_period_name(extracted_prev)
     
     # Prepare chart data - horizontal bars
     categories = []
@@ -337,20 +438,22 @@ def create_vertical_metrics_chart(table, env=None):
     if not previous_col:
         print("DEBUG CHART: No previous column found, will show single period chart")
     
-    # Get period labels
+    # Get period labels with proper formatting
     current_period = "Current"
     previous_period = "Previous"
+    
+    # Extract periods from environment
     if env and hasattr(env, 'periods') and env.periods:
         period = env.periods[0] if isinstance(env.periods, list) else env.periods
-        current_period = period.upper() if period.lower().startswith('q') else period
-        # Calculate previous period
-        if hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.isdigit():
-            previous_period = str(int(period) - 1)
-        elif hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.lower().startswith('q'):
-            parts = period.split()
-            if len(parts) == 2 and parts[1].isdigit():
-                prev_year = str(int(parts[1]) - 1)
-                previous_period = f"{parts[0].upper()} {prev_year}"
+        # Properly format the period name
+        current_period = format_period_name(period)
+        
+        # Calculate previous period based on growth type
+        if hasattr(env, 'growth_type'):
+            if env.growth_type == "Y/Y":
+                previous_period = calculate_previous_period_yoy(period)
+            elif env.growth_type == "P/P":
+                previous_period = calculate_previous_period_pop(period)
     
     # Prepare chart data - vertical columns
     categories = []
@@ -831,7 +934,7 @@ def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, i
     insight_template = jinja2.Template(insight_prompt).render(**{"facts": facts})
     max_response_prompt = jinja2.Template(max_prompt).render(**{"facts": facts})
 
-    # adding insights (temporarily disabled due to timeout issues)
+    # adding insights
     try:
         ar_utils = ArUtils()
         insights = ar_utils.get_llm_response(insight_template)
@@ -868,11 +971,11 @@ if __name__ == '__main__':
     skill_input: SkillInput = simple_metric_driver.create_input(
         arguments={
   "breakouts": [
-    "region"
+    "geographical_segment"
   ],
-  "metric": "underwriting_profit",
+  "metric": "total_opex",
   "periods": [
-    "q1 2025"
+    "jun 2025"
   ],
   "growth_type": "Y/Y"
 })
