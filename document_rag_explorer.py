@@ -500,14 +500,36 @@ def generate_rag_response(user_question, docs):
         # For now, create a structured response based on the sources
         title = f"Analysis: {user_question}"
         
-        # Build content with citations
+        # Build clean, formatted content with citations like the example
         content_parts = [
-            f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>"
+            f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>",
+            "<br>"
         ]
         
+        # Extract key information from each relevant document
         for i, doc in enumerate(docs):
-            text_preview = str(doc.text)[:200] if doc.text else ""
-            content_parts.append(f"<p>{text_preview}...<sup>[{i+1}]</sup></p>")
+            doc_text = str(doc.text) if doc.text else ""
+            
+            # Clean up the text - remove "START OF PAGE:" markers and format nicely
+            clean_text = doc_text.replace(f"START OF PAGE: {doc.chunk_index}", "").strip()
+            clean_text = clean_text.replace(f"END OF PAGE: {doc.chunk_index}", "").strip()
+            
+            # Get first meaningful sentence or key info (up to 200 chars)
+            if clean_text:
+                # Split by sentences and get first substantial one
+                sentences = clean_text.split('.')
+                key_info = ""
+                for sentence in sentences:
+                    sentence = sentence.strip()
+                    if len(sentence) > 20:  # Skip very short fragments
+                        key_info = sentence + "."
+                        break
+                
+                if not key_info and len(clean_text) > 20:
+                    key_info = clean_text[:200] + "..."
+                
+                if key_info:
+                    content_parts.append(f"<p>{key_info}<sup>[{i+1}]</sup></p>")
         
         content = "\n".join(content_parts)
         
