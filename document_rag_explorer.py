@@ -461,7 +461,11 @@ def calculate_simple_relevance(text, search_terms):
                 if len(word) > 3 and word in text_lower:  # Only check words longer than 3 chars
                     occurrences = text_lower.count(word)
                     if occurrences > 0:
-                        term_score = min(occurrences * 0.05, 0.3)  # Lower score for partial matches
+                        # Give higher scores for key terms
+                        if word in ['airport', 'airports', 'disruption', 'disruptions', 'weather', 'temperature', 'flooding', 'storm', 'wind']:
+                            term_score = min(occurrences * 0.2, 0.8)  # Much higher score for key terms
+                        else:
+                            term_score = min(occurrences * 0.05, 0.3)  # Lower score for other partial matches
                         score += term_score
                         logger.info(f"DEBUG: Found partial match '{word}' {occurrences} times, added {term_score} to score")
     
