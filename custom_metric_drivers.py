@@ -1011,8 +1011,8 @@ def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, i
         
         # Use custom layouts with charts
         if name == "Metrics":
-            # Use vertical chart layout for main Metrics tab
-            rendered = create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env)
+            # Use regular table layout for main Metrics tab (no chart)
+            rendered = wire_layout(json.loads(viz_layout), {**general_vars, **table_vars})
         else:
             # Use horizontal chart layout for breakout tabs
             rendered = create_table_chart_layout(name, table, general_vars, table_vars, viz_layout, env)

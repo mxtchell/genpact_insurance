@@ -136,7 +136,8 @@ def trend(parameters: SkillInput):
                                                 parameters.arguments.table_viz_layout,
                                                 parameters.arguments.chart_viz_layout,
                                                 parameters.arguments.chart_ppt_layout,
-                                                parameters.arguments.table_ppt_export_viz_layout)
+                                                parameters.arguments.table_ppt_export_viz_layout,
+                                                param_dict)
 
     display_charts = env.trend.display_charts
 
@@ -178,7 +179,7 @@ def map_chart_variables(chart_vars, prefix):
 
     return mapped_vars
 
-def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_prompt, insight_prompt, table_viz_layout, chart_viz_layout, chart_ppt_layout, table_ppt_export_viz_layout):
+def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_prompt, insight_prompt, table_viz_layout, chart_viz_layout, chart_ppt_layout, table_ppt_export_viz_layout, param_dict):
     facts = []
     for i_df in insights_dfs:
         facts.append(i_df.to_dict(orient='records'))
@@ -199,31 +200,35 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
 
     viz = []
     slides = []
-    print(f"\n=== CHART NAMES DEBUG ===")
-    for name in charts.keys():
-        print(f"Available chart: '{name}'")
-    print("=========================\n")
     
     for name, chart_vars in charts.items():
-        print(f"Processing: '{name}'")
-        # Skip difference charts - only show absolute and growth charts  
-        name_lower = name.lower()
-        if ("difference" in name_lower or 
-            "delta" in name_lower or
-            " change" in name_lower and "%" not in name_lower):
-            print(f"  -> SKIPPING (difference chart)")
-            continue
-        print(f"  -> ADDING to viz")
+        print(f"Processing chart: '{name}'")
+        print(f"Chart vars keys: {list(chart_vars.keys())}")
+        
+        # Add hide_difference_chart logic when growth_type is specified
+        if param_dict.get("growth_type"):
+            chart_vars["hide_difference_chart"] = True
+        
+        # Filter out difference chart variables from chart_vars if hide_difference_chart is set
+        filtered_chart_vars = {}
+        for key, value in chart_vars.items():
+            if key.startswith("difference_") and chart_vars.get("hide_difference_chart", False):
+                print(f"  -> REMOVING difference variable: {key}")
+                continue
+            filtered_chart_vars[key] = value
             
-        chart_vars["footer"] = f"*{chart_vars['footer']}" if chart_vars.get('footer') else "No additional info."
-        rendered = wire_layout(json.loads(chart_viz_layout), {**tab_vars, **chart_vars})
+        filtered_chart_vars["footer"] = f"*{filtered_chart_vars['footer']}" if filtered_chart_vars.get('footer') else "No additional info."
+        rendered = wire_layout(json.loads(chart_viz_layout), {**tab_vars, **filtered_chart_vars})
         viz.append(SkillVisualization(title=name, layout=rendered))
 
-        prefixes = ["absolute_", "growth_"]  # Removed "difference_" to disable difference charts
+        prefixes = ["absolute_", "growth_", "difference_"]
 
         for prefix in prefixes:
             if (prefix in ["growth_"] and
                 chart_vars.get("hide_growth_chart", False)):
+                continue
+            if (prefix in ["difference_"] and
+                chart_vars.get("hide_difference_chart", False)):
                 continue
 
             try:
@@ -250,10 +255,11 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
 
 if __name__ == '__main__':
     skill_input: SkillInput = trend.create_input(arguments={
-        'breakouts': ["distribution_channel"],
-        'periods': ["q1 2024","q2 2024","q3 2024","q4 2024","q1 2025","q2 2025"],
-        'metrics': ["underwriting_profit"],
-        'growth_type': "Y/Y"
+        'breakouts': [],
+        'periods': ["2025"],
+        'metrics': ["nwp"],
+        'growth_type': "Y/Y",
+        'time_granularity': "quarter"
     })
     out = trend(skill_input)
     preview_skill(trend, out)
