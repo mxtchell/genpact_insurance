@@ -64,13 +64,13 @@ logger = logging.getLogger(__name__)
             name="response_layout",
             parameter_type="visualization",
             description="Layout for Response tab",
-            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "ResponseHtml", "type": "Html", "html": "{{response_content}}"}]}, "inputVariables": [{"name": "response_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "ResponseHtml", "fieldName": "html"}]}]}'
+            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "ResponseText", "type": "Paragraph", "text": "{{response_content}}"}]}, "inputVariables": [{"name": "response_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "ResponseText", "fieldName": "text"}]}]}'
         ),
         SkillParameter(
             name="sources_layout", 
             parameter_type="visualization",
             description="Layout for Sources tab",
-            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "SourcesHtml", "type": "Html", "html": "{{sources_content}}"}]}, "inputVariables": [{"name": "sources_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "SourcesHtml", "fieldName": "html"}]}]}'
+            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "SourcesText", "type": "Paragraph", "text": "{{sources_content}}"}]}, "inputVariables": [{"name": "sources_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "SourcesText", "fieldName": "text"}]}]}'
         )
     ]
 )
