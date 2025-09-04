@@ -151,15 +151,29 @@ def create_comparison_bar_chart(table, name, env=None):
         # Skip first column (dimension name) and find metric columns
         if col == table.columns[0]:
             continue
-        # Look for current value column
-        elif any(pattern in col_lower for pattern in ['q1 2025', 'q2 2025', 'q3 2025', 'q4 2025', '2025', 'current']):
+        # Look for "Value" and "Prev Value" columns (common pattern in breakout tables)
+        elif col_lower == 'value' and not current_col:
             current_col = col
-            metric_col = col  # Store for metric name extraction
-            print(f"DEBUG HCHART: Found current column: {col}")
-        # Look for previous value column  
-        elif any(pattern in col_lower for pattern in ['q1 2024', 'q2 2024', 'q3 2024', 'q4 2024', '2024', 'previous', 'prior']):
+            # Get metric name from environment or use generic "Value"
+            if env and hasattr(env, 'metric'):
+                # Convert metric name to readable format (e.g., total_opex -> Total Opex)
+                metric_col = env.metric.replace('_', ' ').title()
+            else:
+                metric_col = "Value"
+            print(f"DEBUG HCHART: Found current column: {col}, metric: {metric_col}")
+        elif col_lower == 'prev value' or col_lower == 'previous value':
             previous_col = col
             print(f"DEBUG HCHART: Found previous column: {col}")
+        # Look for columns with periods in parentheses
+        elif '(' in col and ')' in col:
+            period_str = col.split('(')[1].split(')')[0]
+            if any(year in period_str for year in ['2025', '2026']):
+                current_col = col
+                metric_col = col.split('(')[0].strip()
+                print(f"DEBUG HCHART: Found current column with period: {col}")
+            elif any(year in period_str for year in ['2024', '2023']):
+                previous_col = col
+                print(f"DEBUG HCHART: Found previous column with period: {col}")
     
     if not current_col:
         print(f"DEBUG HCHART: No current column found, chart disabled")
