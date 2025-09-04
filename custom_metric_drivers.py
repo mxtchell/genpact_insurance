@@ -154,12 +154,12 @@ def create_comparison_bar_chart(table, name, env=None):
         # Look for "Value" and "Prev Value" columns (common pattern in breakout tables)
         elif col_lower == 'value' and not current_col:
             current_col = col
-            # Get metric name from environment or use generic "Value"
+            # Get actual metric name from environment (e.g., total_opex -> Total Opex)
             if env and hasattr(env, 'metric'):
-                # Convert metric name to readable format (e.g., total_opex -> Total Opex)
                 metric_col = env.metric.replace('_', ' ').title()
             else:
-                metric_col = "Value"
+                # Fallback - try to extract from other columns or table context
+                metric_col = name if name else "Metric"
             print(f"DEBUG HCHART: Found current column: {col}, metric: {metric_col}")
         elif col_lower == 'prev value' or col_lower == 'previous value':
             previous_col = col
