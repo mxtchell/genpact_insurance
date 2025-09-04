@@ -444,13 +444,30 @@ def calculate_simple_relevance(text, search_terms):
     text_lower = text.lower()
     score = 0.0
     
+    logger.info(f"DEBUG: Calculating relevance for text snippet: '{text_lower[:100]}...'")
+    logger.info(f"DEBUG: Search terms: {search_terms}")
+    
     for term in search_terms:
         if term and term.lower() in text_lower:
             # Count occurrences and normalize
             occurrences = text_lower.count(term.lower())
-            score += min(occurrences * 0.1, 0.5)
+            term_score = min(occurrences * 0.1, 0.5)
+            score += term_score
+            logger.info(f"DEBUG: Found '{term}' {occurrences} times, added {term_score} to score")
+        else:
+            # Check for partial matches
+            term_words = term.lower().split()
+            for word in term_words:
+                if len(word) > 3 and word in text_lower:  # Only check words longer than 3 chars
+                    occurrences = text_lower.count(word)
+                    if occurrences > 0:
+                        term_score = min(occurrences * 0.05, 0.3)  # Lower score for partial matches
+                        score += term_score
+                        logger.info(f"DEBUG: Found partial match '{word}' {occurrences} times, added {term_score} to score")
     
-    return min(score, 1.0)
+    final_score = min(score, 1.0)
+    logger.info(f"DEBUG: Final relevance score: {final_score}")
+    return final_score
 
 def generate_rag_response(user_question, docs):
     """Generate response using LLM with document context"""
