@@ -136,36 +136,61 @@ def create_comparison_bar_chart(table, name, env=None):
     if table is None or table.empty:
         return None
     
-    # Find current and previous period columns
+    print(f"DEBUG HCHART: Creating horizontal chart for {name}")
+    print(f"DEBUG HCHART: Table columns: {list(table.columns)}")
+    print(f"DEBUG HCHART: Sample data:")
+    print(table.head(3))
+    
+    # Find current and previous period columns - look for value columns
     current_col = None
     previous_col = None
+    metric_col = None  # Store the metric name column
     
     for col in table.columns:
-        if 'current' in col.lower() or '(2024)' in col or '(2025)' in col:
+        col_lower = col.lower()
+        # Skip first column (dimension name) and find metric columns
+        if col == table.columns[0]:
+            continue
+        # Look for current value column
+        elif any(pattern in col_lower for pattern in ['q1 2025', 'q2 2025', 'q3 2025', 'q4 2025', '2025', 'current']):
             current_col = col
-        elif 'previous' in col.lower() or '(2023)' in col or '(2024)' in col:
+            metric_col = col  # Store for metric name extraction
+            print(f"DEBUG HCHART: Found current column: {col}")
+        # Look for previous value column  
+        elif any(pattern in col_lower for pattern in ['q1 2024', 'q2 2024', 'q3 2024', 'q4 2024', '2024', 'previous', 'prior']):
             previous_col = col
+            print(f"DEBUG HCHART: Found previous column: {col}")
     
-    if not current_col or not previous_col:
+    if not current_col:
+        print(f"DEBUG HCHART: No current column found, chart disabled")
         return None
     
     # Extract metric name and time periods
-    metric_name = current_col.split('(')[0].strip() if '(' in current_col else current_col
+    metric_name = metric_col.split('(')[0].strip() if metric_col and '(' in metric_col else (metric_col if metric_col else "Value")
     
-    # Get period labels
-    current_period = "Current"
-    previous_period = "Previous"
-    if env and hasattr(env, 'periods') and env.periods:
+    # Get period labels from column names
+    current_period = "Q2 2025"
+    previous_period = "Q2 2024"
+    
+    # Try to extract periods from column names
+    if '(' in current_col and ')' in current_col:
+        current_period = current_col.split('(')[1].split(')')[0]
+    elif env and hasattr(env, 'periods') and env.periods:
         period = env.periods[0] if isinstance(env.periods, list) else env.periods
         current_period = period.upper() if period.lower().startswith('q') else period
-        # Calculate previous period
-        if hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.isdigit():
-            previous_period = str(int(period) - 1)
-        elif hasattr(env, 'growth_type') and env.growth_type == "Y/Y" and period.lower().startswith('q'):
-            parts = period.split()
-            if len(parts) == 2 and parts[1].isdigit():
+    
+    if previous_col and '(' in previous_col and ')' in previous_col:
+        previous_period = previous_col.split('(')[1].split(')')[0]
+    elif env and hasattr(env, 'growth_type'):
+        if env.growth_type == "Y/Y":
+            # Year over year comparison
+            if current_period.upper().startswith('Q') and len(current_period.split()) == 2:
+                parts = current_period.split()
                 prev_year = str(int(parts[1]) - 1)
-                previous_period = f"{parts[0].upper()} {prev_year}"
+                previous_period = f"{parts[0]} {prev_year}"
+        elif env.growth_type == "P/P":
+            # Period over period
+            previous_period = "Q1 2025"  # Previous quarter
     
     # Prepare chart data - horizontal bars
     categories = []
@@ -174,6 +199,7 @@ def create_comparison_bar_chart(table, name, env=None):
     
     for idx, row in table.head(10).iterrows():
         category = str(row.iloc[0])  # First column is dimension
+        print(f"DEBUG HCHART: Processing {category}")
         
         # Get current period value
         current_val_str = str(row[current_col]) if pd.notna(row[current_col]) else "0"
@@ -182,14 +208,18 @@ def create_comparison_bar_chart(table, name, env=None):
             current_val = float(current_clean)
         except:
             current_val = 0
+        print(f"DEBUG HCHART: Current value: '{current_val_str}' -> {current_val}")
             
-        # Get previous period value  
-        prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
-        prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
-        try:
-            prev_val = float(prev_clean)
-        except:
-            prev_val = 0
+        # Get previous period value if column exists
+        prev_val = 0
+        if previous_col:
+            prev_val_str = str(row[previous_col]) if pd.notna(row[previous_col]) else "0"
+            prev_clean = prev_val_str.replace('$', '').replace(',', '').replace(' ', '').replace('%', '')
+            try:
+                prev_val = float(prev_clean)
+            except:
+                prev_val = 0
+            print(f"DEBUG HCHART: Previous value: '{prev_val_str}' -> {prev_val}")
         
         categories.append(category)
         current_values.append(current_val)
@@ -209,31 +239,47 @@ def create_comparison_bar_chart(table, name, env=None):
             current_formatted.append(f"${genpact_format_number(curr)}")
             previous_formatted.append(f"${genpact_format_number(prev)}")
     
+    # Build series data
+    series_data = [
+        {
+            "name": current_period,
+            "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
+            "color": "#2E86C1"
+        }
+    ]
+    
+    # Add previous period series only if we have previous data
+    if previous_col:
+        series_data.append({
+            "name": previous_period,
+            "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
+            "color": "#8E44AD"
+        })
+    
+    chart_title = f"{name} - {metric_name}"
+    if previous_col:
+        chart_title = f"{name} - {current_period} vs {previous_period}"
+    
+    print(f"DEBUG HCHART: Chart title: {chart_title}")
+    print(f"DEBUG HCHART: Categories: {categories}")
+    print(f"DEBUG HCHART: Series count: {len(series_data)}")
+    
     # Create horizontal bar chart configuration
     bar_chart = {
         "type": "highcharts",
         "config": {
             "chart": {"type": "bar"},
-            "title": {"text": f"{name} - {current_period} vs {previous_period}"},
+            "title": {"text": chart_title},
             "xAxis": {"categories": categories},
             "yAxis": {
-                "title": {"text": metric_name}
+                "title": {"text": metric_name},
+                "min": 0
             },
             "tooltip": {
+                "pointFormat": "<b>{series.name}: {point.formatted}</b>",
                 "valueSuffix": "%" if is_percentage else ""
             },
-            "series": [
-                {
-                    "name": current_period,
-                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(current_values, current_formatted)],
-                    "color": "#2E86C1"
-                },
-                {
-                    "name": previous_period,
-                    "data": [{"y": val, "formatted": fmt} for val, fmt in zip(previous_values, previous_formatted)],
-                    "color": "#8E44AD"
-                }
-            ],
+            "series": series_data,
             "plotOptions": {
                 "bar": {
                     "dataLabels": {
@@ -372,7 +418,8 @@ def create_vertical_metrics_chart(table, env=None):
             "title": {"text": chart_title},
             "xAxis": {"categories": categories},
             "yAxis": {
-                "title": {"text": "Value"}
+                "title": {"text": "Value"},
+                "min": 0
             },
             "tooltip": {
                 "pointFormat": "<b>{series.name}: {point.formatted}</b>",
@@ -770,9 +817,12 @@ def render_layout(tables, title, subtitle, insights_dfs, warnings, max_prompt, i
     insight_template = jinja2.Template(insight_prompt).render(**{"facts": facts})
     max_response_prompt = jinja2.Template(max_prompt).render(**{"facts": facts})
 
-    # adding insights
-    ar_utils = ArUtils()
-    insights = ar_utils.get_llm_response(insight_template)
+    # adding insights (temporarily disabled due to timeout issues)
+    try:
+        ar_utils = ArUtils()
+        insights = ar_utils.get_llm_response(insight_template)
+    except:
+        insights = "Analysis insights"
     viz_list = []
     export_data = {}
 
