@@ -5,6 +5,7 @@ from typing import List, Optional, Dict, Any
 import pandas as pd
 from skill_framework import SkillInput, SkillVisualization, skill, SkillParameter, SkillOutput, ParameterDisplayDescription
 from skill_framework.skills import ExportData
+from skill_framework.layouts import wire_layout
 
 import json
 import os
@@ -58,6 +59,18 @@ logger = logging.getLogger(__name__)
             parameter_type="prompt",
             description="Prompt for the insights section (left panel)",
             default_value="Thank you for your question! I've searched through the available documents in the knowledge base. Please check the response and sources tabs above for detailed analysis with citations and document references. Feel free to ask follow-up questions if you need clarification on any of the findings."
+        ),
+        SkillParameter(
+            name="response_layout",
+            parameter_type="visualization",
+            description="Layout for Response tab",
+            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "ResponseHtml", "type": "Html", "html": "{{response_content}}"}]}, "inputVariables": [{"name": "response_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "ResponseHtml", "fieldName": "html"}]}]}'
+        ),
+        SkillParameter(
+            name="sources_layout", 
+            parameter_type="visualization",
+            description="Layout for Sources tab",
+            default_value='{"layoutJson": {"type": "Document", "children": [{"name": "SourcesHtml", "type": "Html", "html": "{{sources_content}}"}]}, "inputVariables": [{"name": "sources_content", "isRequired": false, "defaultValue": null, "targets": [{"elementName": "SourcesHtml", "fieldName": "html"}]}]}'
         )
     ]
 )
@@ -79,6 +92,7 @@ def document_rag_explorer(parameters: SkillInput):
     main_html = ""
     sources_html = ""
     title = "Document Analysis"
+    response_data = None
     
     try:
         # Load document sources from pack.json
@@ -156,39 +170,87 @@ def document_rag_explorer(parameters: SkillInput):
         sources_html = "<p>Error loading sources</p>"
         title = "Error"
     
-    # Create two separate tabs
-    # Tab 1: Response with references at bottom
-    response_html = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
+    # Create content variables for wire_layout like price variance does
+    # Prepare content for response tab
+    references_content = ""
+    if response_data and response_data.get('references'):
+        references_content = f"""
+        <hr style="margin: 20px 0;">
+        <h3>References</h3>
+        {create_references_list(response_data['references'])}
+        """
+    
+    response_content = f"""
+    <div style="padding: 20px;">
         {main_html}
-        <hr style="border: 1px solid #e5e7eb; margin: 30px 0;">
-        <h2 style="font-size: 20px; font-weight: 600; color: #1a1a1a; margin-bottom: 15px;">References</h2>
-        <div style="font-size: 14px; line-height: 1.5;">
-            {create_references_list(response_data.get('references', [])) if 'response_data' in locals() and response_data else "No references available"}
-        </div>
+        {references_content}
     </div>
     """
     
-    # Tab 2: Sources table
-    sources_table_html = f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; padding: 20px;">
-        <h1 style="font-size: 24px; font-weight: bold; color: #1a1a1a; margin-bottom: 20px;">Document Sources</h1>
-        <div style="width: 100%;">
-            {create_sources_table(response_data.get('references', [])) if 'response_data' in locals() and response_data else sources_html}
-        </div>
+    # Prepare content for sources tab
+    sources_content = f"""
+    <div style="padding: 20px;">
+        <h2>Document Sources</h2>
+        {create_sources_table(response_data['references']) if response_data and response_data.get('references') else sources_html}
     </div>
     """
     
-    visualizations = [
-        SkillVisualization(
-            title=title,
-            layout=response_html
-        ),
-        SkillVisualization(
-            title="Sources",
-            layout=sources_table_html
-        )
-    ]
+    # Create visualizations using wire_layout like price variance
+    visualizations = []
+    
+    try:
+        logger.info(f"DEBUG: Creating response tab with title: {title}")
+        logger.info(f"DEBUG: Response content length: {len(response_content)} characters")
+        logger.info(f"DEBUG: References content length: {len(references_content)} characters")
+        
+        # Response tab
+        response_vars = {"response_content": response_content}
+        logger.info(f"DEBUG: Response vars keys: {list(response_vars.keys())}")
+        
+        response_layout_json = json.loads(parameters.arguments.response_layout)
+        logger.info(f"DEBUG: Response layout parsed successfully")
+        
+        rendered_response = wire_layout(response_layout_json, response_vars)
+        logger.info(f"DEBUG: Response layout rendered successfully, type: {type(rendered_response)}")
+        
+        visualizations.append(SkillVisualization(title=title, layout=rendered_response))
+        logger.info(f"DEBUG: Response visualization added successfully")
+        
+        # Sources tab
+        logger.info(f"DEBUG: Creating sources tab")
+        logger.info(f"DEBUG: Sources content length: {len(sources_content)} characters")
+        
+        sources_vars = {"sources_content": sources_content}
+        logger.info(f"DEBUG: Sources vars keys: {list(sources_vars.keys())}")
+        
+        sources_layout_json = json.loads(parameters.arguments.sources_layout)
+        logger.info(f"DEBUG: Sources layout parsed successfully")
+        
+        rendered_sources = wire_layout(sources_layout_json, sources_vars)
+        logger.info(f"DEBUG: Sources layout rendered successfully, type: {type(rendered_sources)}")
+        
+        visualizations.append(SkillVisualization(title="Sources", layout=rendered_sources))
+        logger.info(f"DEBUG: Sources visualization added successfully")
+        
+        logger.info(f"DEBUG: Total visualizations created: {len(visualizations)}")
+        for i, viz in enumerate(visualizations):
+            logger.info(f"DEBUG: Visualization {i+1}: title='{viz.title}', layout_type={type(viz.layout)}")
+            
+    except Exception as e:
+        logger.error(f"ERROR: Failed to create visualizations: {str(e)}")
+        import traceback
+        logger.error(f"ERROR: Full traceback: {traceback.format_exc()}")
+        
+        # Fallback to simple HTML if wire_layout fails
+        logger.info("DEBUG: Falling back to simple HTML visualizations")
+        simple_response_html = f"<div style='padding:20px;'>{main_html}{references_content}</div>"
+        simple_sources_html = f"<div style='padding:20px;'><h2>Document Sources</h2>{sources_html}</div>"
+        
+        visualizations = [
+            SkillVisualization(title=title, layout=simple_response_html),
+            SkillVisualization(title="Sources", layout=simple_sources_html)
+        ]
+        logger.info(f"DEBUG: Fallback visualizations created: {len(visualizations)}")
     
     # Return skill output with final_prompt for insights and narrative=None like other skills
     return SkillOutput(
