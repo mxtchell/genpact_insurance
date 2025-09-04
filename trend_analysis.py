@@ -199,6 +199,10 @@ def render_layout(charts, tables, title, subtitle, insights_dfs, warnings, max_p
     viz = []
     slides = []
     for name, chart_vars in charts.items():
+        # Skip difference charts - only show absolute and growth charts
+        if "difference" in name.lower() or "yoy difference" in name.lower():
+            continue
+            
         chart_vars["footer"] = f"*{chart_vars['footer']}" if chart_vars.get('footer') else "No additional info."
         rendered = wire_layout(json.loads(chart_viz_layout), {**tab_vars, **chart_vars})
         viz.append(SkillVisualization(title=name, layout=rendered))
