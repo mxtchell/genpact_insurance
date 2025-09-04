@@ -513,90 +513,60 @@ def generate_rag_response(user_question, docs):
     )
     
     try:
-        # Make actual LLM call using platform service like the old doc_search code
-        try:
-            # Try to access the LLM gateway from the skill framework
-            # This follows the pattern from the old code: self.sp.ctx.llm_gateway.get_narrative()
-            logger.info("DEBUG: Making LLM call with platform service")
-            
-            # For now, try different ways to access the LLM service
-            llm_response = None
-            
-            # Try method 1: Direct llm_gateway access (like old code)
+        # Use ArUtils for LLM calls like other skills do
+        logger.info("DEBUG: Making LLM call with ArUtils")
+        from ar_analytics import ArUtils
+        ar_utils = ArUtils()
+        llm_response = ar_utils.get_llm_response(full_prompt)
+        
+        logger.info(f"DEBUG: Got LLM response: {llm_response[:100]}...")
+        
+        # Parse the LLM response like the old doc_search code
+        def get_between_tags(content, tag):
             try:
-                # This is how the old doc_search code did it
-                # response = self.sp.ctx.llm_gateway.get_narrative(["GraphRAG"], full_prompt)
-                # For now, we need to mock this or find the proper way in the skill framework
-                
-                # Try accessing through parameters context if available
-                if hasattr(parameters, 'sp') and hasattr(parameters.sp, 'ctx') and hasattr(parameters.sp.ctx, 'llm_gateway'):
-                    logger.info("DEBUG: Using skill framework LLM gateway")
-                    response = parameters.sp.ctx.llm_gateway.get_narrative(["DocumentRAG"], full_prompt)
-                    llm_response = response["choices"][0]["message"]["content"]
-                else:
-                    raise AttributeError("LLM gateway not accessible through skill framework")
-                    
-            except (AttributeError, ImportError) as e:
-                logger.warning(f"DEBUG: Platform LLM gateway not available: {e}")
-                logger.info("DEBUG: Trying direct OpenAI call")
-                
-                import openai
-                client = openai.OpenAI()
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": full_prompt}]
-                )
-                llm_response = response.choices[0].message.content
-                logger.info("DEBUG: Using direct OpenAI call")
-            
-            logger.info(f"DEBUG: Got LLM response: {llm_response[:100]}...")
-            
-            # Parse the LLM response like the old doc_search code
-            def get_between_tags(content, tag):
-                try:
-                    return content.split("<"+tag+">",1)[1].split("</"+tag+">",1)[0]
-                except:
-                    pass
-                return content
-            
-            title = get_between_tags(llm_response, "title") or f"Analysis: {user_question}"
-            content = get_between_tags(llm_response, "content") or llm_response
-            
-            logger.info(f"DEBUG: Parsed title: {title[:50]}...")
-            logger.info(f"DEBUG: Parsed content: {content[:100]}...")
-            
-        except Exception as e:
-            logger.error(f"DEBUG: All LLM call methods failed: {e}")
-            # Fallback to a structured response
-            title = f"Analysis: {user_question}"
-            content = f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>"
-            for i, doc in enumerate(docs):
-                doc_text = str(doc.text) if doc.text else ""
-                clean_text = doc_text.replace(f"START OF PAGE: {doc.chunk_index}", "").strip()
-                clean_text = clean_text.replace(f"END OF PAGE: {doc.chunk_index}", "").strip()
-                if clean_text and len(clean_text) > 20:
-                    key_info = clean_text[:200] + "..." if len(clean_text) > 200 else clean_text
-                    content += f"<p>{key_info}<sup>[{i+1}]</sup></p>"
+                return content.split("<"+tag+">",1)[1].split("</"+tag+">",1)[0]
+            except:
+                pass
+            return content
         
-        # Build references with actual URLs and thumbnails
-        references = []
+        title = get_between_tags(llm_response, "title") or f"Analysis: {user_question}"
+        content = get_between_tags(llm_response, "content") or llm_response
+        
+        logger.info(f"DEBUG: Parsed title: {title[:50]}...")
+        logger.info(f"DEBUG: Parsed content: {content[:100]}...")
+        
+    except Exception as e:
+        logger.error(f"DEBUG: ArUtils LLM call failed: {e}")
+        # Fallback to a structured response
+        title = f"Analysis: {user_question}"
+        content = f"<p>Based on the available documents, here's what I found regarding: <strong>{user_question}</strong></p>"
         for i, doc in enumerate(docs):
-            # Create preview text (first 120 characters)
             doc_text = str(doc.text) if doc.text else ""
-            preview_text = doc_text[:120] + "..." if len(doc_text) > 120 else doc_text
-            
-            ref = {
-                'number': i + 1,
-                'url': doc.url,
-                'src': doc.file_name,
-                'page': doc.chunk_index,
-                'text': f"Document: {doc.file_name}",
-                'preview': preview_text,
-                'thumbnail': ""  # Would be populated with actual thumbnail if available
-            }
-            references.append(ref)
+            clean_text = doc_text.replace(f"START OF PAGE: {doc.chunk_index}", "").strip()
+            clean_text = clean_text.replace(f"END OF PAGE: {doc.chunk_index}", "").strip()
+            if clean_text and len(clean_text) > 20:
+                key_info = clean_text[:200] + "..." if len(clean_text) > 200 else clean_text
+                content += f"<p>{key_info}<sup>[{i+1}]</sup></p>"
+    
+    # Build references with actual URLs and thumbnails
+    references = []
+    for i, doc in enumerate(docs):
+        # Create preview text (first 120 characters)
+        doc_text = str(doc.text) if doc.text else ""
+        preview_text = doc_text[:120] + "..." if len(doc_text) > 120 else doc_text
         
-        return {
+        ref = {
+            'number': i + 1,
+            'url': doc.url,
+            'src': doc.file_name,
+            'page': doc.chunk_index,
+            'text': f"Document: {doc.file_name}",
+            'preview': preview_text,
+            'thumbnail': ""  # Would be populated with actual thumbnail if available
+        }
+        references.append(ref)
+    
+    return {
             'title': title,
             'content': content,
             'references': references,
