@@ -541,7 +541,24 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                     "direction": "column",
                     "maxHeight": "1200px"
                 },
-                # Data table
+                # Chart container (moved above table)
+                {
+                    "name": "ChartContainer0",
+                    "type": "FlexContainer",
+                    "children": "",
+                    "direction": "column",
+                    "minHeight": "400px",
+                    "style": {
+                        "borderRadius": "11.911px",
+                        "background": "var(--White, #FFF)",
+                        "box-shadow": "0px 0px 8.785px 0px rgba(0, 0, 0, 0.10) inset",
+                        "padding": "20px",
+                        "margin": "5px 0",
+                        "fontFamily": "Arial"
+                    },
+                    "parentId": "FlexContainer4"
+                },
+                # Data table (moved below chart)
                 {
                     "name": "DataTable0",
                     "type": "DataTable",
@@ -555,23 +572,6 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                             "vertical-align": "middle"
                         }
                     }
-                },
-                # Chart container
-                {
-                    "name": "ChartContainer0",
-                    "type": "FlexContainer",
-                    "children": "",
-                    "direction": "column",
-                    "minHeight": "400px",
-                    "style": {
-                        "borderRadius": "11.911px",
-                        "background": "var(--White, #FFF)",
-                        "box-shadow": "0px 0px 8.785px 0px rgba(0, 0, 0, 0.10) inset",
-                        "padding": "20px",
-                        "margin": "20px 0",
-                        "fontFamily": "Arial"
-                    },
-                    "parentId": "FlexContainer4"
                 },
                 # Chart
                 {
@@ -738,7 +738,7 @@ def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=N
                         "background": "var(--White, #FFF)",
                         "box-shadow": "0px 0px 8.785px 0px rgba(0, 0, 0, 0.10) inset",
                         "padding": "20px",
-                        "margin": "20px 0",
+                        "margin": "10px 0",
                         "fontFamily": "Arial"
                     },
                     "parentId": "FlexContainer4"
