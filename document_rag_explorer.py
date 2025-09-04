@@ -485,39 +485,11 @@ def find_matching_documents(user_question, topics, loaded_sources, base_url, max
         logger.info(f"DEBUG: Final matches: {len(matches)}")
         return [SimpleNamespace(**match) for match in matches]
         
-    except ImportError as e:
-        logger.error(f"DEBUG: EmbeddingMatchManager not available: {e}")
-        logger.info("DEBUG: Falling back to keyword matching")
-        return find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters)
     except Exception as e:
-        logger.error(f"DEBUG: Embedding matching failed: {e}")
-        logger.info("DEBUG: Falling back to keyword matching")  
-        return find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters)
-
-def find_matching_documents_fallback(user_question, topics, loaded_sources, base_url, max_sources, match_threshold, max_characters):
-    """Fallback to keyword matching if embeddings fail"""
-    logger.info("DEBUG: Using fallback keyword matching")
-    matches = []
-    chars_so_far = 0
-    
-    # Combine question and topics for searching
-    search_terms = [user_question] + topics
-    
-    for source in loaded_sources:
-        if len(matches) >= int(max_sources) or chars_so_far >= int(max_characters):
-            break
-            
-        # Simple relevance scoring
-        score = calculate_simple_relevance(source['text'], search_terms)
-        
-        if float(score) >= float(match_threshold):
-            source['match_score'] = score
-            source['url'] = f"{base_url.rstrip('/')}/{source['file_name']}#page={source['chunk_index']}"
-            matches.append(source)
-            chars_so_far += len(source['text'])
-    
-    matches.sort(key=lambda x: x['match_score'], reverse=True)
-    return [SimpleNamespace(**match) for match in matches[:int(max_sources)]]
+        logger.error(f"ERROR: Embedding matching failed: {e}")
+        import traceback
+        logger.error(f"ERROR: Full traceback: {traceback.format_exc()}")
+        raise e
 
 def calculate_simple_relevance(text, search_terms):
     """Calculate simple relevance score (placeholder for embedding similarity)"""
