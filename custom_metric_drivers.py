@@ -661,6 +661,35 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                     },
                     "parentId": "FlexContainer4"
                 },
+                # Chart
+                {
+                    "name": "HighchartsChart0",
+                    "type": "HighchartsChart",
+                    "children": "",
+                    "style": {
+                        "border": "none",
+                        "borderRadius": "8px"
+                    },
+                    "options": bar_chart["config"],
+                    "parentId": "ChartContainer0",
+                    "flex": ""
+                },
+                # Insights section
+                {
+                    "name": "Markdown0",
+                    "type": "Markdown",
+                    "children": "",
+                    "text": "",
+                    "style": {
+                        "fontSize": "16px",
+                        "color": "#000000",
+                        "backgroundColor": "#ffffff",
+                        "border": "none",
+                        "margin": "10px 0",
+                        "padding": "15px"
+                    },
+                    "parentId": "FlexContainer4"
+                },
                 # Data table (moved below chart)
                 {
                     "name": "DataTable0",
@@ -675,19 +704,6 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                             "vertical-align": "middle"
                         }
                     }
-                },
-                # Chart
-                {
-                    "name": "HighchartsChart0",
-                    "type": "HighchartsChart",
-                    "children": "",
-                    "style": {
-                        "border": "none",
-                        "borderRadius": "8px"
-                    },
-                    "options": bar_chart["config"],
-                    "parentId": "ChartContainer0",
-                    "flex": ""
                 }
             ]
         },
@@ -732,6 +748,17 @@ def create_table_chart_layout(name, table, general_vars, table_vars, viz_layout,
                 "targets": [
                     {
                         "elementName": "Paragraph0",
+                        "fieldName": "text"
+                    }
+                ]
+            },
+            {
+                "name": "exec_summary",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Markdown0",
                         "fieldName": "text"
                     }
                 ]
@@ -859,6 +886,38 @@ def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=N
                     "parentId": "ChartContainer0",
                     "flex": ""
                 },
+                # Insights section
+                {
+                    "name": "Markdown0",
+                    "type": "Markdown",
+                    "children": "",
+                    "text": "",
+                    "style": {
+                        "fontSize": "16px",
+                        "color": "#000000",
+                        "backgroundColor": "#ffffff",
+                        "border": "none",
+                        "margin": "10px 0",
+                        "padding": "15px"
+                    },
+                    "parentId": "FlexContainer4"
+                },
+                # Insights section
+                {
+                    "name": "Markdown0",
+                    "type": "Markdown",
+                    "children": "",
+                    "text": "",
+                    "style": {
+                        "fontSize": "16px",
+                        "color": "#000000",
+                        "backgroundColor": "#ffffff",
+                        "border": "none",
+                        "margin": "10px 0",
+                        "padding": "15px"
+                    },
+                    "parentId": "FlexContainer4"
+                },
                 # Data table (below chart)
                 {
                     "name": "DataTable0",
@@ -917,6 +976,17 @@ def create_metrics_tab_layout(table, general_vars, table_vars, viz_layout, env=N
                 "targets": [
                     {
                         "elementName": "Paragraph0",
+                        "fieldName": "text"
+                    }
+                ]
+            },
+            {
+                "name": "exec_summary",
+                "isRequired": False,
+                "defaultValue": None,
+                "targets": [
+                    {
+                        "elementName": "Markdown0",
                         "fieldName": "text"
                     }
                 ]
