@@ -35,8 +35,9 @@ logger = logging.getLogger(__name__)
         SkillParameter(
             name="base_url",
             parameter_type="code",
-            description="Base URL for document links (e.g., https://your-domain.com/knowledge-base/)",
-            required=True
+            description="Base URL for document links",
+            required=True,
+            default_value="https://gpinsurance.poc.answerrocket.com/apps/system/knowledge-base"
         ),
         SkillParameter(
             name="max_sources",
