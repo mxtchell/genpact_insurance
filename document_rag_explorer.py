@@ -638,42 +638,86 @@ Answer this question: {{user_query}}
 
 # Main response template (simplified for skill framework)
 main_response_template = """
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333;">
-    <div style="font-size: 24px; font-weight: 600; color: #1a1a1a; margin-bottom: 20px; border-bottom: 2px solid #e1e5e9; padding-bottom: 10px;">
-        {{ title }}
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #2d3748; max-width: 100%; margin: 0 auto;">
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 28px; font-weight: 700; color: #1a202c; margin: 0 0 24px 0; line-height: 1.2; border-bottom: 3px solid #3182ce; padding-bottom: 12px; display: inline-block;">
+            {{ title }}
+        </h1>
+        <div style="font-size: 16px; line-height: 1.8; color: #4a5568;">
+            {{ content|safe }}
+        </div>
     </div>
-    <div style="margin-bottom: 40px; font-size: 16px; line-height: 1.7;">
-        {{ content|safe }}
-    </div>
-</div>"""
+</div>
+<style>
+    p { margin: 16px 0; }
+    ul, ol { margin: 16px 0; padding-left: 24px; }
+    li { margin: 8px 0; }
+    sup { 
+        background: #3182ce; 
+        color: white; 
+        padding: 2px 6px; 
+        border-radius: 12px; 
+        font-size: 11px; 
+        font-weight: 600; 
+        margin-left: 4px;
+        text-decoration: none;
+    }
+    sup:hover { background: #2c5aa0; }
+    strong { color: #2d3748; font-weight: 600; }
+    em { color: #4a5568; font-style: italic; }
+</style>"""
 
 # Sources template (simplified for skill framework)
 sources_template = """
-<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333;">
-    <div style="font-size: 18px; font-weight: 600; color: #2c3e50; margin-bottom: 20px; border-bottom: 1px solid #dee2e6; padding-bottom: 8px;">
-        Document Sources
-    </div>
-    {% for ref in references %}
-    <div style="display: flex; align-items: flex-start; margin-bottom: 20px; padding: 16px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef;">
-        <div style="flex-shrink: 0; margin-right: 16px;">
-            {% if ref.thumbnail %}
-            <img src="data:image/png;base64,{{ ref.thumbnail }}" alt="Document thumbnail" style="width: 120px; height: 150px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5;">
-            {% else %}
-            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDEyMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+CjxwYXRoIGQ9Ik00MCA2MEg4MFY2NEg0MFY2MFpNNDAgNzJIODBWNzZINDBWNzJaTTQwIDg0SDY0Vjg4SDQwVjg0WiIgZmlsbD0iI0NDQ0NDQyIvPgo8L3N2Zz4K" alt="Document placeholder" style="width: 120px; height: 150px; object-fit: cover; border: 1px solid #ddd; border-radius: 4px; background-color: #f5f5f5;">
-            {% endif %}
-        </div>
-        <div style="flex: 1;">
-            <div style="font-weight: 600; margin-bottom: 8px;">
-                <a href="{{ ref.url }}" target="_blank" style="color: #0066cc; text-decoration: none; font-size: 16px;">[{{ ref.number }}] {{ ref.text }}</a>
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #2d3748; max-width: 100%; margin: 0 auto;">
+    <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 22px; font-weight: 600; color: #1a202c; margin: 0 0 20px 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+            📄 Document Sources
+        </h2>
+        {% for ref in references %}
+        <div style="margin-bottom: 24px; padding: 20px; background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%); border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s ease, box-shadow 0.2s ease;">
+            <div style="display: flex; align-items: flex-start;">
+                <div style="flex-shrink: 0; margin-right: 16px;">
+                    <div style="width: 60px; height: 60px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 18px; box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);">
+                        {{ ref.number }}
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <div style="margin-bottom: 12px;">
+                        <a href="{{ ref.url }}" target="_blank" style="color: #3182ce; text-decoration: none; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; transition: color 0.2s ease;">
+                            📄 {{ ref.src }}
+                            <svg style="width: 16px; height: 16px; margin-left: 6px;" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+                                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+                            </svg>
+                        </a>
+                    </div>
+                    <div style="color: #718096; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center;">
+                        <svg style="width: 14px; height: 14px; margin-right: 6px;" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"/>
+                        </svg>
+                        Page {{ ref.page }}
+                    </div>
+                    {% if ref.preview %}
+                    <div style="color: #4a5568; font-size: 14px; line-height: 1.6; background: #ffffff; padding: 12px; border-radius: 6px; border-left: 4px solid #3182ce; font-style: italic;">
+                        "{{ ref.preview }}"
+                    </div>
+                    {% endif %}
+                </div>
             </div>
-            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">{{ ref.src }}, Page {{ ref.page }}</div>
-            {% if ref.preview %}
-            <div style="color: #555; font-size: 14px; line-height: 1.5; margin-top: 8px;">{{ ref.preview }}</div>
-            {% endif %}
         </div>
+        {% endfor %}
     </div>
-    {% endfor %}
-</div>"""
+</div>
+<style>
+    .source-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    a:hover {
+        color: #2c5aa0 !important;
+    }
+</style>"""
 
 if __name__ == '__main__':
     skill_input = document_rag_explorer.create_input(
